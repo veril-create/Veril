@@ -1,3 +1,8 @@
+
+
+
+Ikon HTML
+index
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1076,24 +1081,34 @@ Data sekarang akan diganti.`)) return;
 
     function enhanceImage(img) {
       const c = document.createElement('canvas');
-      const maxW = 1600;
       let w = img.naturalWidth || img.width;
       let h = img.naturalHeight || img.height;
+      if (w < 1000) {
+        const scale = 1000 / Math.max(1, w);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const maxW = 2200;
       if (w > maxW) {
         h = Math.round(h * maxW / w);
         w = maxW;
       }
-      c.width = w;
-      c.height = h;
+      const pad = 16;
+      c.width = w + pad * 2;
+      c.height = h + pad * 2;
       const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      const id = ctx.getImageData(0, 0, w, h);
+      ctx.fillStyle = '#111118';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, pad, pad, w, h);
+
+      const id = ctx.getImageData(0, 0, c.width, c.height);
       const d = id.data;
-      const contrast = 1.65;
+      const contrast = 1.25;
       const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
       for (let i = 0; i < d.length; i += 4) {
-        let g
-        = 0.45 * d[i] + 0.25 * d[i + 1] + 0.30 * d[i + 2];
+        let g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
         g = Math.max(0, Math.min(255, factor * (g - 128) + 128));
         d[i] = d[i + 1] = d[i + 2] = g;
       }
@@ -2031,3 +2046,4 @@ Data sekarang akan diganti.`)) return;
   </script>
 </body>
 </html>
+Analyzing
