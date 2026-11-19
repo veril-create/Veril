@@ -885,6 +885,7 @@
       const riskPct = parseFloat(document.getElementById('calcRiskPct').value) || 0;
       const slPips = parseFloat(document.getElementById('calcSlPips').value) || 0;
       const riskAmt = bal * (riskPct / 100);
+      // Pada akun cent, 0.01 lot ≈ 0.1 cent per pip (atau 1 cent per 10 pips)
       const lot = (slPips > 0 && riskAmt > 0) ? Math.max(0.01, riskAmt / (slPips * 10)) : 0.01;
       document.getElementById('calcLotOut').textContent = `${lot.toFixed(2)} Lot`;
       document.getElementById('calcRiskAmt').textContent = `-${riskAmt.toFixed(2)} CHC (≈ ${(riskAmt / 100).toFixed(2)} CHF)`;
@@ -922,7 +923,8 @@
           const data = JSON.parse(ev.target.result);
           if (!data || !Array.isArray(data.trades)) throw new Error('Format tidak valid');
           const cleanList = data.trades.map(sanitizeTradeItem).filter(Boolean);
-          if (!confirm(`Restore ${cleanList.length} trade?\nData sekarang akan diganti.`)) return;
+          if (!confirm(`Restore ${cleanList.length} trade?
+Data sekarang akan diganti.`)) return;
           trades = cleanList;
           if (data.initialBalance != null) document.getElementById('initialBalance').value = data.initialBalance;
           if (data.targetProfit != null) document.getElementById('targetProfit').value = data.targetProfit;
@@ -1091,3 +1093,941 @@
       const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
       for (let i = 0; i < d.length; i += 4) {
         let g
+        = 0.45 * d[i] + 0.25 * d[i + 1] + 0.30 * d[i + 2];
+        g = Math.max(0, Math.min(255, factor * (g - 128) + 128));
+        d[i] = d[i + 1] = d[i + 2] = g;
+      }
+      ctx.putImageData(id, 0, 0);
+      return c;
+    }
+
+    async function jalankanOCR() {
+      if (!currentImage) return alert('Upload gambar dulu');
+      const btn = document.getElementById('btnOCR');
+      btn.disabled = true;
+      btn.textContent = '⏳ Baca...';
+      const pb = document.getElementById('progressBox');
+      const bar = document.getElementById('progressBar');
+      const txt = document.getElementById('progressText');
+      pb.style.display = 'block';
+      bar.style.width = '5%';
+
+      try {
+        const canvas = enhancedCanvas || enhanceImage(currentImage);
+        const result = await Tesseract.recognize(canvas, 'eng', {
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              const pct = Math.round((m.progress || 0) * 100);
+              bar.style.width = pct + '%';
+              txt.textContent = `Membaca... ${pct}%`;
+            } else {
+              txt.textContent = m.status || 'Memproses...';
+            }
+          },
+          tessedit_pageseg_mode: '6'
+        });
+        const raw = (result.data.text || '').trim();
+        document.getElementById('pasteArea').value = raw;
+        const list = parseMultipleTrades(raw);
+        if (list.length) {
+          const total = list.reduce((s, t) => s + (t.profit || 0), 0);
+          const curr = list[0].currency || '';
+          txt.textContent = `✅ Ketemu ${list.length} trade · Total ${formatMoney(total, curr)}`;
+          document.getElementById('btnTambah').disabled = false;
+        } else {
+          txt.textContent = '⚠️ Belum ketemu profit. Edit teks manual jika perlu.';
+          document.getElementById('btnTambah').disabled = true;
+        }
+        bar.style.width = '100%';
+      } catch (err) {
+        txt.textContent = 'Gagal: ' + err.message;
+        alert('OCR gagal.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Baca Teks';
+      }
+    }
+
+    function parseNumber(str) {
+      if (str == null || str === '') return null;
+      let s = String(str).trim()
+        .replace(/[–—−‐‑]/g, '-')
+        .replace(/\s+/g, '')
+        .replace(/,/g, '.')
+        .replace(/[^\d.\-+]/g, '');
+      const parts = s.split('.');
+      if (parts.length > 2) {
+        const dec = parts.pop();
+        s = parts.join('') + '.' + dec;
+      }
+      if (!s || s === '-' || s === '+') return null;
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function parseOneTrade(block) {
+      if (!block || !block.trim()) return null;
+      const full = block.replace(/\s+/g, ' ').trim();
+
+      let symbol = null, type = null, volume = null;
+      const sm = full.match(/\b([A-Za-z]{2,8}\s*\/\s*[A-Za-z]{2,8}|[A-Za-z]{3,10}[A-Za-z0-9c.#_-]{0,6})\s*[,:]?\s*(buy|sell|long|short|beli|jual)\s+([\d.,]+)/i);
+      if (sm) {
+        symbol = normalizePairSymbol(sm[1]);
+        const rawType = sm[2].toLowerCase();
+        type = (rawType === 'beli' || rawType === 'buy' || rawType === 'long') ? 'buy' : 'sell';
+        volume = parseNumber(sm[3]);
+      } else {
+        const s2 = full.match(/\b([A-Za-z]{2,8}\s*\/\s*[A-Za-z]{2,8}|[A-Za-z]{6}[A-Za-z0-9c.#_-]*)\b/);
+        if (s2) symbol = normalizePairSymbol(s2[1]);
+        const t2 = full.match(/\b(buy|sell|long|short|beli|jual)\b/i);
+        if (t2) {
+          const rt = t2[1].toLowerCase();
+          type = (rt === 'beli' || rt === 'buy' || rt === 'long') ? 'buy' : 'sell';
+        }
+        const v2 = full.match(/\b(?:beli|jual|buy|sell|lot|vol)?\s*[:=]?\s*(0\.\d{1,2}|\d+\.\d{1,2})\b/i);
+        if (v2) volume = parseNumber(v2[1]);
+      }
+
+      let openPrice = null, closePrice = null;
+      const padaMatch = full.match(/(?:beli|jual|buy|sell)\s+[\d.,]+\s+(?:pada|at|@)\s+([\d,]+(?:\.\d+)?)/i);
+      if (padaMatch) openPrice = parseNumber(padaMatch[1]);
+
+      const pm = full.match(/([\d\s,]{3,}\.\d+)\s*[→\->»]+\s*([\d\s,]{3,}\.\d+)/);
+      if (pm) {
+        openPrice = parseNumber(pm[1]);
+        closePrice = parseNumber(pm[2]);
+      }
+
+      let profit = null;
+      let detectedCurrency = null;
+
+      const currSigned = full.match(/([+\-–—−]\s*[\d,]{1,7}\.\d{1,2})\s*(CHC|CHF|USD|USC|EUR|GBP|JPY|AUD|CAD|IDR)\b/i);
+      if (currSigned) {
+        profit = parseNumber(currSigned[1]);
+        detectedCurrency = currSigned[2].toUpperCase();
+      }
+
+      if (profit === null) {
+        const signedMatches = full.match(/[+\-–—−]\s*[\d,]{1,7}\.\d{1,2}/g) || [];
+        const signedCands = signedMatches
+          .map(parseNumber)
+          .filter(v => v !== null && Math.abs(v) < 50000 && Math.abs(v) > 0.004);
+        if (signedCands.length) profit = signedCands[signedCands.length - 1];
+      }
+
+      if (profit === null) {
+        const nums = full.match(/(?<![.\d])[\d,]{1,7}\.\d{1,2}(?![.\d])/g) || [];
+        const cands = [];
+        for (const n of nums) {
+          const v = parseNumber(n);
+          if (v === null) continue;
+          if (Math.abs(v) < 0.01 || Math.abs(v) >= 50000) continue;
+          if (openPrice && Math.abs(v - openPrice) < 0.05) continue;
+          if (closePrice && Math.abs(v - closePrice) < 0.05) continue;
+          if (volume != null && Math.abs(v - volume) < 0.001) continue;
+          cands.push(v);
+        }
+        if (cands.length) profit = cands[cands.length - 1];
+      }
+
+      if (profit !== null && profit > 0) {
+        const absStr = String(Math.abs(profit)).replace('.', '[.,]');
+        if (new RegExp('[-–—−]\\s*' + absStr).test(block)) {
+          profit = -Math.abs(profit);
+        }
+      }
+
+      if (!detectedCurrency) {
+        const anyCurr = full.match(/\b(CHC|CHF|USD|USC|EUR|GBP|JPY|AUD|CAD|IDR)\b/i);
+        if (anyCurr) detectedCurrency = anyCurr[1].toUpperCase();
+      }
+
+      const selectedCurr = document.getElementById('defaultCurrency')?.value || 'AUTO';
+      const currency = selectedCurr !== 'AUTO' ? selectedCurr : (detectedCurrency || 'CHC');
+
+      let openTime = '', closeTime = '';
+      const numTimes = full.match(/\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}\s+\d{1,2}[:.]\d{2}(?:[:.]\d{2})?/g) || [];
+      const namedTimes = full.match(/\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}\s+\d{1,2}[:.]\d{2}(?:[:.]\d{2})?/g) || [];
+      const times = numTimes.length ? numTimes : namedTimes;
+      if (times.length >= 2) {
+        closeTime = times[0];
+        openTime = times[1];
+      } else if (times.length === 1) {
+        closeTime = times[0];
+      }
+
+      let ticket = '';
+      const tm = full.match(/#?\s*(\d{8,})/);
+      if (tm) ticket = tm[1];
+
+      let closeReason = 'Manual / Lainnya';
+      if (/ditutup oleh\s+batas rugi|closed by\s+stop loss|\[sl\]/i.test(full)) closeReason = 'Batas Rugi (SL)';
+      else if (/ditutup oleh\s+batas untung|closed by\s+take profit|\[tp\]/i.test(full)) closeReason = 'Batas Untung (TP)';
+
+      if (!symbol && profit == null) return null;
+      return {
+        symbol: symbol || 'Unknown',
+        type: type || '-',
+        volume,
+        profit,
+        currency,
+        closeReason,
+        openTime,
+        closeTime,
+        ticket,
+        openPrice,
+        closePrice
+      };
+    }
+
+    function parseMultipleTrades(text) {
+      if (!text || !text.trim()) return [];
+      const chunks = text.split(/\n\s*---\s*\n|(?=#\s*\d{6,})|(?=\b[A-Za-z]{2,8}\s*\/\s*[A-Za-z]{2,8}\s*(?:buy|sell|long|short|beli|jual))/i);
+      const results = [];
+      for (const part of chunks) {
+        const t = parseOneTrade(part);
+        if (t && t.profit != null && Number.isFinite(t.profit)) results.push(t);
+      }
+      if (results.length === 0) {
+        const one = parseOneTrade(text);
+        if (one && one.profit != null && Number.isFinite(one.profit)) results.push(one);
+      }
+      const seen = new Set();
+      return results.filter(t => {
+        const key = t.ticket || `${t.symbol}|${t.closeTime}|${t.profit}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function formatMoney(n, curr = '') {
+      if (n == null || !Number.isFinite(Number(n))) return '-';
+      const num = Number(n);
+      const formatted = (num > 0 ? '+' : '') + num.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return curr ? `${formatted} ${curr}` : formatted;
+    }
+
+    function setFilter(f) {
+      currentFilter = f;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+      render();
+    }
+
+    function setTagFilter(tag) {
+      activeTagFilter = activeTagFilter === tag ? null : tag;
+      render();
+    }
+
+    function setCurrencyFilter(curr) {
+      activeCurrencyFilter = activeCurrencyFilter === curr ? null : curr;
+      render();
+    }
+
+    function setPairFilter(pair) {
+      activePairFilter = activePairFilter === pair ? null : pair;
+      render();
+    }
+
+    function parseTradeDate(t) {
+      const str = t.closeTime || t.openTime || '';
+      const mNum = str.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+      if (mNum) return new Date(+mNum[1], +mNum[2] - 1, +mNum[3]);
+
+      const mNamed = str.match(/(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/);
+      if (mNamed) {
+        const day = +mNamed[1];
+        const mon = MONTH_MAP[mNamed[2].toLowerCase()];
+        const year = +mNamed[3];
+        if (mon !== undefined) return new Date(year, mon, day);
+      }
+      return null;
+    }
+
+    function getTradeHour(t) {
+      const str = t.openTime || t.closeTime || '';
+      const m = str.match(/\b(\d{1,2})[:.](\d{2})(?:[:.]\d{2})?/);
+      return m ? parseInt(m[1], 10) : null;
+    }
+
+    function getTradingSession(hour) {
+      if (hour === null || Number.isNaN(hour)) return 'Tidak Diketahui';
+      if (hour >= 7 && hour < 14) return 'Asia (07-14 WIB)';
+      if (hour >= 14 && hour < 20) return 'London / Eropa (14-20 WIB)';
+      return 'New York / US (20-07 WIB)';
+    }
+
+    function getFilteredTrades() {
+      let list = trades;
+      if (currentFilter !== 'all') {
+        const now = new Date();
+        const todayKey = toLocalDateKey(now);
+        const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        list = list.filter(t => {
+          const d = parseTradeDate(t);
+          if (!d) return false;
+          if (currentFilter === 'today') return toLocalDateKey(d) === todayKey;
+          if (currentFilter === 'week') return d >= weekAgo;
+          return true;
+        });
+      }
+      if (activeCurrencyFilter) {
+        list = list.filter(t => (t.currency || 'CHC') === activeCurrencyFilter);
+      }
+      if (activePairFilter) {
+        list = list.filter(t => (t.symbol || 'Unknown') === activePairFilter);
+      }
+      if (activeTagFilter) {
+        list = list.filter(t => (t.tags || []).includes(activeTagFilter));
+      }
+      return list;
+    }
+
+    function tambahKeRekap() {
+      const text = document.getElementById('pasteArea').value;
+      const list = parseMultipleTrades(text);
+      if (!list.length) return alert('Belum ketemu data profit. Pastikan ada angka profit di teks.');
+
+      const existingTickets = new Set(trades.map(t => t.ticket).filter(Boolean));
+      const baru = list.filter(t => !t.ticket || !existingTickets.has(t.ticket));
+      const duplikat = list.length - baru.length;
+
+      if (!baru.length) {
+        alert('Semua trade sudah ada di rekap.');
+        return;
+      }
+      if (duplikat > 0) {
+        if (!confirm(`${baru.length} trade baru akan ditambah.\n${duplikat} sudah ada (dilewati).\nLanjut?`)) return;
+      }
+
+      const note = document.getElementById('tradeNote').value.trim();
+      for (const data of [...baru].reverse()) {
+        trades.unshift({
+          ...data,
+          note,
+          tags: [...selectedTags],
+          id: makeId()
+        });
+      }
+
+      saveTrades();
+      resetImage();
+      document.getElementById('pasteArea').value = '';
+      document.getElementById('tradeNote').value = '';
+      document.getElementById('btnTambah').disabled = true;
+      clearTags();
+      render();
+    }
+
+    function hapusTrade(id) {
+      trades = trades.filter(t => t.id !== id);
+      saveTrades();
+      render();
+    }
+
+    function hapusSemuaTrade() {
+      if (trades.length && confirm('Hapus semua trade?')) {
+        trades = [];
+        saveTrades();
+        render();
+      }
+    }
+
+    function flipProfit(id) {
+      const t = trades.find(x => x.id === id);
+      if (!t || t.profit == null) return;
+      t.profit = -t.profit;
+      saveTrades();
+      render();
+    }
+
+    function editProfit(id) {
+      const t = trades.find(x => x.id === id);
+      if (!t) return;
+      const input = prompt('Ubah nominal profit/loss (contoh: 4.38 atau -174.87):', String(t.profit ?? 0));
+      if (input === null) return;
+      const val = parseNumber(input);
+      if (val === null) return alert('Nominal tidak valid.');
+      t.profit = val;
+      saveTrades();
+      render();
+    }
+
+    function editNote(id) {
+      const t = trades.find(x => x.id === id);
+      if (!t) return;
+      const input = prompt('Catatan / alasan entry:', t.note || '');
+      if (input === null) return;
+      t.note = input.trim().slice(0, 200);
+      saveTrades();
+      render();
+    }
+
+    function calcStreak(list) {
+      let maxWin = 0, maxLoss = 0, curWin = 0, curLoss = 0;
+      for (const t of [...list].reverse()) {
+        if ((t.profit || 0) > 0) {
+          curWin++;
+          curLoss = 0;
+          maxWin = Math.max(maxWin, curWin);
+        } else if ((t.profit || 0) < 0) {
+          curLoss++;
+          curWin = 0;
+          maxLoss = Math.max(maxLoss, curLoss);
+        } else {
+          curWin = 0;
+          curLoss = 0;
+        }
+      }
+      return { maxWin, maxLoss };
+    }
+
+    function calcMaxDrawdown(list) {
+      const sorted = [...list].reverse();
+      let peak = 0, cum = 0, maxDD = 0;
+      for (const t of sorted) {
+        cum += (t.profit || 0);
+        if (cum > peak) peak = cum;
+        const dd = peak - cum;
+        if (dd > maxDD) maxDD = dd;
+      }
+      return maxDD;
+    }
+
+    function getDisplayCurrency(filtered) {
+      if (activeCurrencyFilter) return activeCurrencyFilter;
+      const set = new Set(filtered.map(t => t.currency || 'CHC'));
+      return set.size === 1 ? [...set][0] : '';
+    }
+
+    function updateTargetUI(filtered) {
+      const initBal = parseFloat(document.getElementById('initialBalance').value) || 0;
+      const tp = parseFloat(document.getElementById('targetProfit').value) || 0;
+      const tl = parseFloat(document.getElementById('targetLoss').value) || 0;
+      const totalAllNet = trades.reduce((s, t) => s + (t.profit || 0), 0);
+      const net = filtered.reduce((s, t) => s + (t.profit || 0), 0);
+      const curr = getDisplayCurrency(filtered);
+
+      const balEl = document.getElementById('balanceInfo');
+      if (initBal > 0) {
+        const curBal = initBal + totalAllNet;
+        const growth = ((curBal - initBal) / initBal) * 100;
+        balEl.innerHTML = `<span>Saldo Sekarang: <strong class="${curBal >= initBal ? 'g' : 'r'}">${formatMoney(curBal, curr)}</strong></span><span class="${growth >= 0 ? 'g' : 'r'}">${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</span>`;
+      } else {
+        balEl.innerHTML = '';
+      }
+
+      const el = document.getElementById('targetProgress');
+      const bar = document.getElementById('targetBarFill');
+      const rem = document.getElementById('reminderBox');
+
+      if (!tp && !tl) {
+        el.innerHTML = '<span>Belum set target</span>';
+        bar.style.width = '0%';
+        rem.classList.remove('show', 'ok', 'warn');
+        return;
+      }
+
+      if (net >= 0 && tp > 0) {
+        const pct = Math.min(100, (net / tp) * 100);
+        el.innerHTML = `<span>Profit <strong class="g">${formatMoney(net, curr)}</strong> / ${formatMoney(tp, curr)}</span><span>${pct.toFixed(0)}%</span>`;
+        bar.style.width = pct + '%';
+        if (pct >= 100) {
+          rem.textContent = '🎉 Target tercapai! Amankan profit Anda.';
+          rem.className = 'reminder show ok';
+        } else if (pct >= 80) {
+          rem.textContent = `🔥 Hampir target! Tinggal ${formatMoney(tp - net, curr)}`;
+          rem.className = 'reminder show';
+        } else {
+          rem.classList.remove('show', 'ok', 'warn');
+        }
+      } else if (net < 0 && tl > 0) {
+        const pct = Math.min(100, (Math.abs(net) / tl) * 100);
+        el.innerHTML = `<span>Loss <strong class="r">${formatMoney(net, curr)}</strong> / max ${formatMoney(-tl, curr)}</span><span>${pct.toFixed(0)}%</span>`;
+        bar.style.width = pct + '%';
+        if (pct >= 70) {
+          rem.textContent = `⚠️ Loss sudah ${pct.toFixed(0)}% dari batas! Istirahat dulu.`;
+          rem.className = 'reminder show warn';
+        } else {
+          rem.classList.remove('show', 'ok', 'warn');
+        }
+      } else {
+        el.innerHTML = `<span>Hasil: <strong class="${net >= 0 ? 'g' : 'r'}">${formatMoney(net, curr)}</strong></span>`;
+        bar.style.width = '0%';
+        rem.classList.remove('show', 'ok', 'warn');
+      }
+    }
+
+    ['initialBalance', 'targetProfit', 'targetLoss'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        saveTargets();
+        if (id === 'initialBalance' && document.getElementById('initialBalance').value) {
+          document.getElementById('calcBalance').value = document.getElementById('initialBalance').value;
+          updateLotCalculator();
+        }
+        render();
+      });
+    });
+
+    function updateChart(filtered) {
+      const sorted = [...filtered].reverse();
+      let cum = 0;
+      const labels = [], data = [];
+      sorted.forEach((t, i) => {
+        cum += (t.profit || 0);
+        labels.push(t.closeTime ? t.closeTime.slice(0, 11) : `#${i + 1}`);
+        data.push(Number(cum.toFixed(2)));
+      });
+      const ctx = document.getElementById('equityChart').getContext('2d');
+      if (equityChart) equityChart.destroy();
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      const positive = cum >= 0;
+      equityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            borderColor: positive ? '#34d399' : '#f87171',
+            backgroundColor: positive ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: sorted.length > 15 ? 0 : 3,
+            borderWidth: 2.5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: isLight ? '#6b6b7b' : '#8b8b9e', maxTicksLimit: 5, font: { size: 10, family: 'Inter' } },
+              grid: { color: isLight ? '#e2e2ea' : '#252532', drawBorder: false }
+            },
+            y: {
+              ticks: { color: isLight ? '#6b6b7b' : '#8b8b9e', font: { size: 10, family: 'Inter' } },
+              grid: { color: isLight ? '#e2e2ea' : '#252532', drawBorder: false }
+            }
+          }
+        }
+      });
+    }
+
+    function updateSessionStats(filtered) {
+      const curr = getDisplayCurrency(filtered);
+      const bySess = {};
+      filtered.forEach(t => {
+        const sess = getTradingSession(getTradeHour(t));
+        if (!bySess[sess]) bySess[sess] = { trades: 0, wins: 0, profit: 0 };
+        bySess[sess].trades++;
+        bySess[sess].profit += (t.profit || 0);
+        if ((t.profit || 0) > 0) bySess[sess].wins++;
+      });
+      const sorted = Object.entries(bySess).sort((a, b) => b[1].profit - a[1].profit);
+      document.getElementById('sessionBody').innerHTML = sorted.map(([sess, s]) => `
+        <tr>
+          <td style="font-weight:700">${escapeHTML(sess)}</td>
+          <td>${s.trades}</td>
+          <td>${s.trades ? ((s.wins / s.trades) * 100).toFixed(0) : 0}%</td>
+          <td class="${s.profit >= 0 ? 'g' : 'r'}" style="font-weight:700">${formatMoney(s.profit, curr)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Belum ada data</td></tr>';
+    }
+
+    function updateCloseReasonStats(filtered) {
+      const curr = getDisplayCurrency(filtered);
+      const byReason = {};
+      filtered.forEach(t => {
+        const r = t.closeReason || 'Manual / Lainnya';
+        if (!byReason[r]) byReason[r] = { trades: 0, wins: 0, profit: 0 };
+        byReason[r].trades++;
+        byReason[r].profit += (t.profit || 0);
+        if ((t.profit || 0) > 0) byReason[r].wins++;
+      });
+      const sorted = Object.entries(byReason).sort((a, b) => b[1].trades - a[1].trades);
+      document.getElementById('reasonBody').innerHTML = sorted.map(([reason, s]) => `
+        <tr>
+          <td style="font-weight:700">${escapeHTML(reason)}</td>
+          <td>${s.trades}</td>
+          <td>${s.trades ? ((s.wins / s.trades) * 100).toFixed(0) : 0}%</td>
+          <td class="${s.profit >= 0 ? 'g' : 'r'}" style="font-weight:700">${formatMoney(s.profit, curr)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Belum ada data</td></tr>';
+    }
+
+    function updateCalendar(filtered) {
+      const byDay = {};
+      filtered.forEach(t => {
+        const d = parseTradeDate(t);
+        if (!d) return;
+        const k = toLocalDateKey(d);
+        byDay[k] = (byDay[k] || 0) + (t.profit || 0);
+      });
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const first = new Date(year, month, 1);
+      const startDay = first.getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      let html = '';
+      for (let i = 0; i < startDay; i++) html += '<div class="cal-day empty"></div>';
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const p = byDay[key];
+        let cls = 'cal-day';
+        let ptxt = '';
+        if (p !== undefined) {
+          cls += p >= 0 ? ' profit' : ' loss';
+          ptxt = `<span class="p">${p >= 0 ? '+' : ''}${Math.round(p)}</span>`;
+        }
+        html += `<div class="${cls}"><span>${d}</span>${ptxt}</div>`;
+      }
+      document.getElementById('calGrid').innerHTML = html;
+    }
+
+    function updateCurrencyStats() {
+      const byCurr = {};
+      trades.forEach(t => {
+        const c = t.currency || 'CHC';
+        if (!byCurr[c]) byCurr[c] = { trades: 0, wins: 0, profit: 0 };
+        byCurr[c].trades++;
+        byCurr[c].profit += (t.profit || 0);
+        if ((t.profit || 0) > 0) byCurr[c].wins++;
+      });
+      const sorted = Object.entries(byCurr).sort((a, b) => b[1].trades - a[1].trades);
+      document.getElementById('currBody').innerHTML = sorted.map(([c, s]) => {
+        const stdNote = (c === 'CHC' || c === 'USC')
+          ? `<div style="font-size:0.65rem;color:var(--muted)">≈ ${formatMoney(s.profit / 100, c === 'CHC' ? 'CHF' : 'USD')}</div>`
+          : '';
+        return `
+          <tr>
+            <td style="font-weight:700">${escapeHTML(c)}</td>
+            <td>${s.trades}</td>
+            <td>${s.trades ? ((s.wins / s.trades) * 100).toFixed(0) : 0}%</td>
+            <td class="${s.profit >= 0 ? 'g' : 'r'}" style="font-weight:700">${formatMoney(s.profit, c)}${stdNote}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function updateSymbolStats(filtered) {
+      const curr = getDisplayCurrency(filtered);
+      const bySym = {};
+      filtered.forEach(t => {
+        const s = t.symbol || 'Unknown';
+        if (!bySym[s]) bySym[s] = { trades: 0, wins: 0, profit: 0 };
+        bySym[s].trades++;
+        bySym[s].profit += (t.profit || 0);
+        if ((t.profit || 0) > 0) bySym[s].wins++;
+      });
+      const sorted = Object.entries(bySym).sort((a, b) => b[1].profit - a[1].profit);
+      document.getElementById('symBody').innerHTML = sorted.map(([sym, s]) => `
+        <tr>
+          <td style="font-weight:700">${escapeHTML(sym)}</td>
+          <td>${s.trades}</td>
+          <td>${s.trades ? ((s.wins / s.trades) * 100).toFixed(0) : 0}%</td>
+          <td class="${s.profit >= 0 ? 'g' : 'r'}" style="font-weight:700">${formatMoney(s.profit, curr)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Belum ada data</td></tr>';
+    }
+
+    function updateTagStats(filtered) {
+      const curr = getDisplayCurrency(filtered);
+      const byTag = {};
+      filtered.forEach(t => {
+        const tags = t.tags && t.tags.length ? t.tags : ['(tanpa tag)'];
+        tags.forEach(tag => {
+          if (!byTag[tag]) byTag[tag] = { trades: 0, wins: 0, profit: 0 };
+          byTag[tag].trades++;
+          byTag[tag].profit += (t.profit || 0);
+          if ((t.profit || 0) > 0) byTag[tag].wins++;
+        });
+      });
+      const sorted = Object.entries(byTag).sort((a, b) => b[1].profit - a[1].profit);
+      document.getElementById('tagBody').innerHTML = sorted.map(([tag, s]) => `
+        <tr>
+          <td style="font-weight:700">${escapeHTML(tag)}</td>
+          <td>${s.trades}</td>
+          <td>${s.trades ? ((s.wins / s.trades) * 100).toFixed(0) : 0}%</td>
+          <td class="${s.profit >= 0 ? 'g' : 'r'}" style="font-weight:700">${formatMoney(s.profit, curr)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Belum ada tag</td></tr>';
+    }
+
+    function updateCurrencyFilters() {
+      const allCurr = new Set();
+      trades.forEach(t => allCurr.add(t.currency || 'CHC'));
+      const row = document.getElementById('currencyFilterRow');
+      if (allCurr.size <= 1) {
+        row.innerHTML = '';
+        return;
+      }
+      let html = `<button class="curr-filter${activeCurrencyFilter === null ? ' active' : ''}" onclick="setCurrencyFilter(null)">Semua Akun</button>`;
+      [...allCurr].sort().forEach(c => {
+        const safe = escapeHTML(c);
+        html += `<button class="curr-filter${activeCurrencyFilter === c ? ' active' : ''}" onclick="setCurrencyFilter('${safe}')">${safe}</button>`;
+      });
+      row.innerHTML = html;
+    }
+
+    function updatePairFilters() {
+      const allPairs = new Set();
+      trades.forEach(t => allPairs.add(t.symbol || 'Unknown'));
+      const row = document.getElementById('pairFilterRow');
+      if (allPairs.size <= 1) {
+        row.innerHTML = '';
+        return;
+      }
+      let html = `<button class="curr-filter${activePairFilter === null ? ' active' : ''}" onclick="setPairFilter(null)">Semua Pair</button>`;
+      [...allPairs].sort().forEach(p => {
+        const safe = escapeHTML(p);
+        html += `<button class="curr-filter${activePairFilter === p ? ' active' : ''}" onclick="setPairFilter('${safe}')">${safe}</button>`;
+      });
+      row.innerHTML = html;
+    }
+
+    function updateTagFilters() {
+      const allTags = new Set();
+      trades.forEach(t => (t.tags || []).forEach(tg => allTags.add(tg)));
+      const row = document.getElementById('tagFilterRow');
+      if (!allTags.size) {
+        row.innerHTML = '';
+        return;
+      }
+      let html = `<button class="tag-filter${activeTagFilter === null ? ' active' : ''}" onclick="setTagFilter(null)">Semua Tag</button>`;
+      [...allTags].sort().forEach(tg => {
+        const safeAttr = escapeHTML(tg);
+        html += `<button class="tag-filter${activeTagFilter === tg ? ' active' : ''}" onclick="setTagFilter('${safeAttr}')">${safeAttr}</button>`;
+      });
+      row.innerHTML = html;
+    }
+
+    function updateWeekCompare() {
+      const now = new Date();
+      const thisStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      const lastStart = new Date(thisStart.getFullYear(), thisStart.getMonth(), thisStart.getDate() - 7);
+      let thisNet = 0, thisC = 0, lastNet = 0, lastC = 0;
+
+      const baseList = activeCurrencyFilter ? trades.filter(t => (t.currency || 'CHC') === activeCurrencyFilter) : trades;
+      const curr = getDisplayCurrency(baseList);
+
+      baseList.forEach(t => {
+        const d = parseTradeDate(t);
+        if (!d) return;
+        if (d >= thisStart) {
+          thisNet += (t.profit || 0);
+          thisC++;
+        } else if (d >= lastStart && d < thisStart) {
+          lastNet += (t.profit || 0);
+          lastC++;
+        }
+      });
+
+      document.getElementById('weekCompare').innerHTML = `
+        <div class="week-box">
+          <div class="wl">Minggu Ini · ${thisC} trade</div>
+          <div class="wv ${thisNet >= 0 ? 'g' : 'r'}">${formatMoney(thisNet, curr)}</div>
+        </div>
+        <div class="week-box">
+          <div class="wl">Minggu Lalu · ${lastC} trade</div>
+          <div class="wv ${lastNet >= 0 ? 'g' : 'r'}">${formatMoney(lastNet, curr)}</div>
+        </div>`;
+    }
+
+    function csvCell(val) {
+      const str = String(val ?? '');
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+
+    function exportCSV() {
+      const f = getFilteredTrades();
+      if (!f.length) return alert('Belum ada trade');
+      const header = 'Symbol,Type,Volume,Profit,Currency,CloseReason,OpenTime,CloseTime,Ticket,Tags,Note\n';
+      const rows = f.map(t =>
+        [t.symbol, t.type, t.volume ?? '', t.profit, t.currency || 'CHC', t.closeReason || '', t.openTime, t.closeTime, t.ticket, (t.tags || []).join(';'), t.note || '']
+          .map(csvCell)
+          .join(',')
+      ).join('\n');
+      const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mt5-rekap-${toLocalDateKey(new Date())}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function shareHasil() {
+      const f = getFilteredTrades();
+      if (!f.length) return alert('Belum ada trade');
+      const net = f.reduce((s, t) => s + (t.profit || 0), 0);
+      const curr = getDisplayCurrency(f);
+      const wins = f.filter(t => t.profit > 0).length;
+      const losses = f.filter(t => t.profit < 0).length;
+      const wr = f.length ? (wins / f.length * 100).toFixed(1) : 0;
+      const streak = calcStreak(f);
+      const canvas = document.getElementById('shareCanvas');
+      const ctx = canvas.getContext('2d');
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
+      ctx.fillStyle = isLight ? '#f0f0f5' : '#07070a';
+      ctx.fillRect(0, 0, 600, 420);
+      ctx.fillStyle = isLight ? '#fff' : '#12121a';
+      roundRect(ctx, 24, 24, 552, 372, 18);
+      ctx.fill();
+
+      ctx.fillStyle = isLight ? '#12121a' : '#f4f4f7';
+      ctx.font = 'bold 22px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('MT5 Trading Recap', 300, 65);
+
+      ctx.fillStyle = isLight ? '#6b6b7b' : '#8b8b9e';
+      ctx.font = '12px Inter,system-ui';
+      ctx.fillText(new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 300, 88);
+
+      ctx.fillStyle = net >= 0 ? '#34d399' : '#f87171';
+      ctx.font = 'bold 38px Inter,system-ui';
+      ctx.fillText(formatMoney(net, curr), 300, 145);
+
+      ctx.fillStyle = isLight ? '#6b6b7b' : '#8b8b9e';
+      ctx.font = '13px Inter,system-ui';
+      const subText = (curr === 'CHC' || curr === 'USC')
+        ? `Net Profit (≈ ${formatMoney(net / 100, curr === 'CHC' ? 'CHF' : 'USD')})`
+        : 'Net Profit';
+      ctx.fillText(subText, 300, 168);
+
+      const stats = [
+        { l: 'Trades', v: f.length },
+        { l: 'Win Rate', v: wr + '%' },
+        { l: 'Win/Loss', v: `${wins}/${losses}` },
+        { l: 'Max Streak', v: `${streak.maxWin}W ${streak.maxLoss}L` }
+      ];
+      stats.forEach((s, i) => {
+        const x = 90 + (i % 4) * 140;
+        ctx.fillStyle = isLight ? '#12121a' : '#f4f4f7';
+        ctx.font = 'bold 18px Inter,system-ui';
+        ctx.fillText(String(s.v), x, 225);
+        ctx.fillStyle = isLight ? '#6b6b7b' : '#8b8b9e';
+        ctx.font = '11px Inter,system-ui';
+        ctx.fillText(s.l, x, 245);
+      });
+
+      ctx.fillStyle = isLight ? '#a1a1aa' : '#52525b';
+      ctx.font = '11px Inter,system-ui';
+      ctx.fillText('MT5 Rekap Pro', 300, 360);
+
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mt5-rekap-${toLocalDateKey(new Date())}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function render() {
+      const filtered = getFilteredTrades();
+      if (trades.length === 0) {
+        document.getElementById('hasil').classList.add('hidden');
+        document.getElementById('empty').classList.remove('hidden');
+        updateTargetUI([]);
+        return;
+      }
+      document.getElementById('empty').classList.add('hidden');
+      document.getElementById('hasil').classList.remove('hidden');
+      document.getElementById('jumlahTrade').textContent = filtered.length;
+
+      let net = 0, wins = 0, losses = 0, gP = 0, gL = 0;
+      filtered.forEach(t => {
+        const p = t.profit || 0;
+        net += p;
+        if (p > 0) { wins++; gP += p; }
+        else if (p < 0) { losses++; gL += Math.abs(p); }
+      });
+
+      const curr = getDisplayCurrency(filtered);
+      const wr = filtered.length ? wins / filtered.length : 0;
+      const pf = gL > 0 ? gP / gL : (gP > 0 ? Infinity : 0);
+      const streak = calcStreak(filtered);
+      const maxDD = calcMaxDrawdown(filtered);
+
+      const centSub = (curr === 'CHC' || curr === 'USC')
+        ? `<div class="sub">≈ ${formatMoney(net / 100, curr === 'CHC' ? 'CHF' : 'USD')}</div>`
+        : '';
+
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat"><div class="label">Net Profit</div><div class="value ${net >= 0 ? 'g' : 'r'}">${formatMoney(net, curr)}</div>${centSub}</div>
+        <div class="stat"><div class="label">Max Drawdown</div><div class="value r">${formatMoney(-maxDD, curr)}</div></div>
+        <div class="stat"><div class="label">Win Rate</div><div class="value ${wr >= 0.5 ? 'g' : 'y'}">${(wr * 100).toFixed(1)}%</div><div class="sub">${wins}W / ${losses}L (${filtered.length} trade)</div></div>
+        <div class="stat"><div class="label">Profit Factor</div><div class="value ${pf >= 1.5 ? 'g' : pf >= 1 ? 'y' : 'r'}">${pf === Infinity ? '∞' : pf.toFixed(2)}</div><div class="sub">Streak: ${streak.maxWin}W · ${streak.maxLoss}L</div></div>
+      `;
+
+      updateTargetUI(filtered);
+      updateChart(filtered);
+      updateSessionStats(filtered);
+      updateCloseReasonStats(filtered);
+      updateCalendar(filtered);
+      updateCurrencyStats();
+      updateSymbolStats(filtered);
+      updateTagStats(filtered);
+      updateCurrencyFilters();
+      updatePairFilters();
+      updateTagFilters();
+      updateWeekCompare();
+
+      document.getElementById('tradesList').innerHTML = filtered.map(t => {
+        const safeId = escapeHTML(t.id);
+        const isBuy = t.type === 'buy' || t.type === 'long';
+        const c = t.currency || 'CHC';
+        return `
+          <div class="trade-card">
+            <div class="row1">
+              <div>
+                <span class="sym">${escapeHTML(t.symbol)}</span>
+                <span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">${escapeHTML(t.type)} ${t.volume != null ? escapeHTML(t.volume) : ''}</span>
+                <span class="badge badge-curr">${escapeHTML(c)}</span>
+                ${t.closeReason ? `<span class="badge badge-reason">${escapeHTML(t.closeReason)}</span>` : ''}
+              </div>
+              <div style="text-align:right">
+                <div class="profit-big ${t.profit >= 0 ? 'g' : 'r'}">${formatMoney(t.profit, c)}</div>
+                <button class="rmv" onclick="editNote('${safeId}')" title="Catatan">📝 catatan</button>
+                <button class="rmv" onclick="editProfit('${safeId}')" title="Edit nominal">✎ edit</button>
+                <button class="rmv" onclick="flipProfit('${safeId}')" title="Balik profit/loss">± balik</button>
+                <button class="rmv" onclick="hapusTrade('${safeId}')">hapus</button>
+              </div>
+            </div>
+            <div class="meta">
+              <div>Close ${escapeHTML(t.closeTime || '-')}</div>
+              <div>Open ${escapeHTML(t.openTime || '-')}</div>
+              ${t.openPrice != null ? `<div>${escapeHTML(t.openPrice)} → ${t.closePrice != null ? escapeHTML(t.closePrice) : '-'}</div>` : '<div></div>'}
+              ${t.ticket ? `<div>#${escapeHTML(t.ticket)}</div>` : ''}
+            </div>
+            ${t.note ? `<div class="note-box">📝 ${escapeHTML(t.note)}</div>` : ''}
+            ${(t.tags && t.tags.length) ? `<div class="tags">${t.tags.map(tg => `<span class="tag">${escapeHTML(tg)}</span>`).join('')}</div>` : ''}
+          </div>
+        `;
+      }).join('') || '<div class="empty-state"><p>Tidak ada trade di filter ini</p></div>';
+    }
+
+    loadTrades();
+    loadTargets();
+    loadChecklist();
+    updateLotCalculator();
+    render();
+  </script>
+</body>
+</html>
