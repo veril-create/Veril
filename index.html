@@ -1,7 +1,3 @@
-
-
-
-Ikon HTML
 index
 <!DOCTYPE html>
 <html lang="id">
@@ -519,6 +515,7 @@ index
         </div>
         <div class="btn-row">
           <button class="btn btn-success" id="btnTambah" onclick="tambahKeRekap()" disabled>+ Tambah ke Rekap</button>
+          <button class="btn btn-ghost" onclick="tambahManualTrade()">+ Input Manual</button>
           <button class="btn btn-ghost" onclick="clearText()">Reset</button>
         </div>
       </div>
@@ -1192,7 +1189,7 @@ Data sekarang akan diganti.`)) return;
         type = (rawType === 'beli' || rawType === 'buy' || rawType === 'long') ? 'buy' : 'sell';
         volume = parseNumber(sm[3]);
       } else {
-        const s2 = full.match(/\b([A-Za-z]{2,8}\s*\/\s*[A-Za-z]{2,8}|[A-Za-z]{6}[A-Za-z0-9c.#_-]*)\b/);
+        const s2 = full.match(/\b(XAU\s*\/?\s*USD|XAUJ\s*\/?\s*USD|XAG\s*\/?\s*USD|BTC\s*\/?\s*USD|EUR\s*\/?\s*USD|GBP\s*\/?\s*USD|USD\s*\/?\s*JPY|USD\s*\/?\s*CHF|[A-Za-z]{2,8}\s*\/\s*[A-Za-z]{2,8}|[A-Za-z]{6}[A-Za-z0-9c.#_-]*)\b/i);
         if (s2) symbol = normalizePairSymbol(s2[1]);
         const t2 = full.match(/\b(buy|sell|long|short|beli|jual)\b/i);
         if (t2) {
@@ -1231,6 +1228,16 @@ Data sekarang akan diganti.`)) return;
       }
 
       if (profit === null) {
+        const lblMatch = full.match(/(?:profit|loss|untung|rugi|hasil|net)\s*[:=]?\s*([+\-–—−]?\s*[\d,]{1,7}\.\d{1,2})/i);
+        if (lblMatch) {
+          profit = parseNumber(lblMatch[1]);
+          if (profit !== null && /(?:loss|rugi)/i.test(lblMatch[0]) && profit > 0) {
+            profit = -profit;
+          }
+        }
+      }
+
+      if (profit === null) {
         const nums = full.match(/(?<![.\d])[\d,]{1,7}\.\d{1,2}(?![.\d])/g) || [];
         const cands = [];
         for (const n of nums) {
@@ -1247,7 +1254,7 @@ Data sekarang akan diganti.`)) return;
 
       if (profit !== null && profit > 0) {
         const absStr = String(Math.abs(profit)).replace('.', '[.,]');
-        if (new RegExp('[-–—−]\\s*' + absStr).test(block)) {
+        if (new RegExp('[-–—−]\s*' + absStr).test(block)) {
           profit = -Math.abs(profit);
         }
       }
@@ -1430,6 +1437,47 @@ Data sekarang akan diganti.`)) return;
       document.getElementById('pasteArea').value = '';
       document.getElementById('tradeNote').value = '';
       document.getElementById('btnTambah').disabled = true;
+      clearTags();
+      render();
+    }
+
+    function tambahManualTrade() {
+      const rawText = document.getElementById('pasteArea').value.trim();
+      const parsed = parseOneTrade(rawText) || {};
+      const symInput = prompt('Symbol / Pair:', parsed.symbol || 'XAU/USD');
+      if (symInput === null) return;
+      const typeInput = prompt('Arah (buy / sell):', parsed.type && parsed.type !== '-' ? parsed.type : 'sell');
+      if (typeInput === null) return;
+      const profInput = prompt('Nominal Profit / Loss (contoh: 12.50 atau -8.40):', parsed.profit != null ? String(parsed.profit) : '');
+      if (profInput === null) return;
+      const profit = parseNumber(profInput);
+      if (profit === null) return alert('Nominal profit/loss tidak valid.');
+
+      const selectedCurr = document.getElementById('defaultCurrency')?.value || 'AUTO';
+      const currency = selectedCurr !== 'AUTO' ? selectedCurr : (parsed.currency || 'CHC');
+      const note = document.getElementById('tradeNote').value.trim();
+
+      trades.unshift({
+        id: makeId(),
+        symbol: normalizePairSymbol(symInput),
+        type: (typeInput.toLowerCase().includes('buy') || typeInput.toLowerCase().includes('beli')) ? 'buy' : 'sell',
+        volume: parsed.volume ?? null,
+        profit,
+        currency,
+        closeReason: parsed.closeReason || 'Batas Untung (TP)',
+        note,
+        openTime: parsed.openTime || '',
+        closeTime: parsed.closeTime || toLocalDateKey(new Date()),
+        ticket: parsed.ticket || '',
+        openPrice: parsed.openPrice ?? null,
+        closePrice: parsed.closePrice ?? null,
+        tags: [...selectedTags]
+      });
+
+      saveTrades();
+      resetImage();
+      document.getElementById('pasteArea').value = '';
+      document.getElementById('tradeNote').value = '';
       clearTags();
       render();
     }
@@ -2046,4 +2094,4 @@ Data sekarang akan diganti.`)) return;
   </script>
 </body>
 </html>
-Analyzing
+Processed and analyzed in code
