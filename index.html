@@ -270,6 +270,30 @@
     textarea:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
     .extra-inputs { display: grid; grid-template-columns: 115px 1fr; gap: 8px; margin-bottom: 12px; }
     .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .ocr-preview-box {
+      display: none; margin-bottom: 12px; padding: 11px 13px; border-radius: 13px;
+      background: linear-gradient(135deg, rgba(20,184,166,0.12), rgba(56,189,248,0.08));
+      border: 1px solid var(--border2); font-size: 0.76rem;
+    }
+    .ocr-preview-box.show { display: block; }
+    .ocr-preview-title {
+      font-size: 0.67rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--accent2); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .ocr-preview-item {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 5px 8px; border-radius: 9px; background: var(--card2); border: 1px solid var(--border);
+      margin-top: 5px; font-weight: 600;
+    }
+    .eval-summary-strip {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 10px;
+    }
+    .eval-pill {
+      background: var(--card2); border: 1px solid var(--border); border-radius: 11px;
+      padding: 8px 9px; text-align: center;
+    }
+    .eval-pill .ep-val { font-size: 0.92rem; font-weight: 800; }
+    .eval-pill .ep-lbl { font-size: 0.62rem; color: var(--muted); font-weight: 700; text-transform: uppercase; }
     .tag-btn {
       background: var(--card2); border: 1px solid var(--border);
       color: var(--muted); padding: 6px 12px; border-radius: 20px;
@@ -532,6 +556,7 @@
           <div class="ocr-bar-track"><div class="ocr-bar-fill" id="progressBar"></div></div>
         </div>
         <textarea id="pasteArea" placeholder="Hasil deteksi OCR atau teks trade muncul di sini..."></textarea>
+        <div class="ocr-preview-box" id="ocrPreviewBox"></div>
 
         <div class="extra-inputs">
           <div class="field">
@@ -749,7 +774,8 @@
             <label>🎯 Fokus Perbaikan Berikutnya</label>
             <input type="text" id="evalNextFocus" class="text-input" placeholder="Misal: Maksimal 2 entry per sesi, wajib pakai SL..." oninput="saveEvalJournal()" />
           </div>
-          <div id="evalHistoryList" style="margin-top:10px;"></div>
+          <div id="evalPatternSummary" style="margin-top:10px;"></div>
+          <div id="evalHistoryList" style="margin-top:8px;"></div>
         </div>
 
         <div class="card">
@@ -948,6 +974,11 @@
       if (/^GBP\/?USD$|^GBPUSD$/.test(cleaned)) return 'GBP/USD';
       if (/^USD\/?JPY$|^USDJPY$/.test(cleaned)) return 'USD/JPY';
       if (/^USD\/?CHF$|^USDCHF$/.test(cleaned)) return 'USD/CHF';
+      if (/^AUD\/?USD$|^AUDUSD$/.test(cleaned)) return 'AUD/USD';
+      if (/^USD\/?CAD$|^USDCAD$/.test(cleaned)) return 'USD/CAD';
+      if (/^SOL\/?USD$|^SOLUSD$/.test(cleaned)) return 'SOL/USD';
+      const slashPair = cleaned.match(/^([A-Z]{2,6})\/([A-Z]{2,6})$/);
+      if (slashPair && slashPair[1] !== slashPair[2]) return `${slashPair[1]}/${slashPair[2]}`;
       return cleaned || 'Unknown';
     }
 
@@ -1230,9 +1261,51 @@ Data sekarang akan diganti.`)) return;
       reader.readAsText(file);
     });
 
+    const TAG_TO_SETUP = {
+      'FVG': 'FVG',
+      'SnD': 'Supply & Demand',
+      'Breakout': 'Breakout',
+      'News': 'News / Macro',
+      'FOMO': 'Impulse / FOMO'
+    };
+
     function toggleTag(btn) {
       btn.classList.toggle('active');
       selectedTags = [...document.querySelectorAll('.tag-btn.active')].map(b => b.dataset.tag);
+      const setupSel = document.getElementById('tradeSetup');
+      if (btn.classList.contains('active') && setupSel && !setupSel.value && TAG_TO_SETUP[btn.dataset.tag]) {
+        setupSel.value = TAG_TO_SETUP[btn.dataset.tag];
+      }
+    }
+
+    function renderOcrPreview(list) {
+      const box = document.getElementById('ocrPreviewBox');
+      if (!box) return;
+      if (!list || !list.length) {
+        box.classList.remove('show');
+        box.innerHTML = '';
+        return;
+      }
+      const total = list.reduce((s, t) => s + (t.profit || 0), 0);
+      const curr = list[0].currency || 'CHC';
+      box.classList.add('show');
+      box.innerHTML = `
+        <div class="ocr-preview-title">
+          <span>📋 Konfirmasi Hasil Baca (${list.length} Trade)</span>
+          <span class="${total >= 0 ? 'g' : 'r'}">${formatMoney(total, curr)}</span>
+        </div>
+        ${list.map(t => {
+          const dir = t.type && t.type !== '-' ? t.type.toUpperCase() : '-';
+          const lotStr = t.volume != null ? ` · ${t.volume} lot` : '';
+          return `<div class="ocr-preview-item">
+            <div>
+              <span>${escapeHTML(t.symbol)}</span>
+              <span style="color:var(--muted);font-size:0.7rem">${escapeHTML(dir)}${escapeHTML(lotStr)}</span>
+            </div>
+            <span class="${t.profit >= 0 ? 'g' : 'r'}">${formatMoney(t.profit, t.currency || curr)}</span>
+          </div>`;
+        }).join('')}
+      `;
     }
 
     function clearTags() {
@@ -1334,9 +1407,11 @@ Data sekarang akan diganti.`)) return;
         const curr = list[0].currency || '';
         txt.textContent = `✅ Ketemu ${list.length} trade unik · Total ${formatMoney(total, curr)}`;
         document.getElementById('btnTambah').disabled = false;
+        renderOcrPreview(list);
       } else {
         txt.textContent = '⚠️ Belum ketemu profit. Periksa atau edit teks manual.';
         document.getElementById('btnTambah').disabled = true;
+        renderOcrPreview([]);
       }
     }
 
@@ -1354,12 +1429,14 @@ Data sekarang akan diganti.`)) return;
       document.getElementById('pasteArea').value = '';
       document.getElementById('tradeNote').value = '';
       document.getElementById('btnTambah').disabled = true;
+      renderOcrPreview([]);
       clearTags();
     }
 
     document.getElementById('pasteArea').addEventListener('input', e => {
       const list = parseMultipleTrades(e.target.value);
       document.getElementById('btnTambah').disabled = list.length === 0;
+      renderOcrPreview(list);
     });
 
     function enhanceImage(img) {
@@ -1468,9 +1545,11 @@ Data sekarang akan diganti.`)) return;
           const curr = list[0].currency || '';
           txt.textContent = `✅ Ketemu ${list.length} trade · Total ${formatMoney(total, curr)}`;
           document.getElementById('btnTambah').disabled = false;
+          renderOcrPreview(list);
         } else {
           txt.textContent = '⚠️ Belum ketemu profit. Edit teks manual jika perlu.';
           document.getElementById('btnTambah').disabled = true;
+          renderOcrPreview([]);
         }
         bar.style.width = '100%';
       } catch (err) {
@@ -1537,7 +1616,7 @@ Data sekarang akan diganti.`)) return;
           if (!isCurrencyToken(pair)) return normalizePairSymbol(pair);
         }
         // 2. Cari alias pair populer meski OCR sedikit meleset (misal XAUJ/USD, XAUUSD, BTCUSD)
-        const knownMatch = str.match(/\b(XAU[A-Z0-9]*\s*\/?\s*USD|XAG[A-Z0-9]*\s*\/?\s*USD|BTC[A-Z0-9]*\s*\/?\s*USD|ETH[A-Z0-9]*\s*\/?\s*USD|EUR\s*\/?\s*USD|GBP\s*\/?\s*USD|USD\s*\/?\s*JPY|USD\s*\/?\s*CHF)\b/i);
+        const knownMatch = str.match(/\b(XAU[A-Z0-9]*\s*\/?\s*USD|XAG[A-Z0-9]*\s*\/?\s*USD|BTC[A-Z0-9]*\s*\/?\s*USD|ETH[A-Z0-9]*\s*\/?\s*USD|SOL[A-Z0-9]*\s*\/?\s*USD|EUR\s*\/?\s*USD|GBP\s*\/?\s*USD|AUD\s*\/?\s*USD|USD\s*\/?\s*JPY|USD\s*\/?\s*CHF|USD\s*\/?\s*CAD)\b/i);
         if (knownMatch) return normalizePairSymbol(knownMatch[1]);
 
         // 3. Cari token 6 huruf (pair forex/kripto tanpa slash) yang bukan kode mata uang tunggal
@@ -1664,6 +1743,22 @@ Data sekarang akan diganti.`)) return;
           .map(parseNumber)
           .filter(v => v !== null && Math.abs(v) < 500 && Math.abs(v) > 0.004 && !isPriceLevel(v));
         if (signedCands.length) profit = signedCands[signedCands.length - 1];
+      }
+
+      if (profit === null) {
+        const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i];
+          if (/komisi|commission|swap|saldo|balance|kredit|credit|margin|free|equity|tiket|ticket|waktu|time|harga|price/i.test(line)) continue;
+          const m = line.match(/^[+\-–—−]?\s*(\d{1,5}[.,]\d{2})\s*(?:CHC|CHF|USD|USC|EUR|GBP|JPY)?$/i);
+          if (m) {
+            const cand = parseNumber(m[1]);
+            if (cand !== null && Math.abs(cand) > 0.004 && !isPriceLevel(cand)) {
+              profit = /^[-–—−]/.test(line.trim()) ? -Math.abs(cand) : cand;
+              break;
+            }
+          }
+        }
       }
 
       // 2. Jika screenshot kartu MT5 hanya menampilkan Header (#4497474781, XAU/USD, Jual 0.05 pada 3713.132 -> 3701.958) tanpa angka profit eksplisit,
@@ -1905,6 +2000,7 @@ Data sekarang akan diganti.`)) return;
       document.getElementById('tradeNote').value = '';
       if (document.getElementById('tradeSetup')) document.getElementById('tradeSetup').value = '';
       document.getElementById('btnTambah').disabled = true;
+      renderOcrPreview([]);
       clearTags();
       render();
     }
@@ -2537,6 +2633,28 @@ Data sekarang akan diganti.`)) return;
     }
 
     function renderEvalHistory() {
+      const patternBox = document.getElementById('evalPatternSummary');
+      if (patternBox) {
+        const planCount = trades.filter(t => (t.tags || []).some(tg => /plan|sesuai/i.test(tg))).length;
+        const fomoCount = trades.filter(t => (t.tags || []).some(tg => /fomo/i.test(tg)) || /fomo/i.test(t.setup || '')).length;
+        const evalCount = Object.values(evalLogs).filter(v => v && (v.good || v.mistake || v.focus)).length;
+        patternBox.innerHTML = `
+          <div class="eval-summary-strip">
+            <div class="eval-pill">
+              <div class="ep-val g">${planCount}</div>
+              <div class="ep-lbl">Sesuai Plan</div>
+            </div>
+            <div class="eval-pill">
+              <div class="ep-val r">${fomoCount}</div>
+              <div class="ep-lbl">Tag / Setup FOMO</div>
+            </div>
+            <div class="eval-pill">
+              <div class="ep-val" style="color:var(--accent2)">${evalCount}</div>
+              <div class="ep-lbl">Catatan Evaluasi</div>
+            </div>
+          </div>
+        `;
+      }
       const box = document.getElementById('evalHistoryList');
       if (!box) return;
       const entries = Object.entries(evalLogs)
