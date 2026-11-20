@@ -1,8 +1,3 @@
-
-
-
-Ikon HTML
-index
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -23,16 +18,16 @@ index
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #050508; --bg2: #0a0a10; --card: rgba(17, 17, 26, 0.88); --card2: rgba(25, 25, 38, 0.85);
-      --border: rgba(255, 255, 255, 0.08); --border2: rgba(240, 193, 75, 0.28);
-      --text: #f8f8fc; --muted: #9898ad;
-      --green: #34d399; --green-bg: rgba(52,211,153,0.12);
-      --red: #fb7185; --red-bg: rgba(251,113,133,0.12);
-      --blue: #60a5fa; --blue-bg: rgba(96,165,250,0.12);
-      --yellow: #fbbf24; --yellow-bg: rgba(251,191,36,0.12);
-      --accent: #a78bfa; --accent2: #d8b4fe; --accent-bg: rgba(167,139,250,0.14);
-      --gold: #f0c14b; --gold2: #fde68a; --gold-bg: rgba(240,193,75,0.13);
-      --radius: 18px; --shadow: 0 12px 36px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05);
+      --bg: #04090c; --bg2: #071115; --card: rgba(10, 22, 26, 0.90); --card2: rgba(14, 30, 36, 0.88);
+      --border: rgba(45, 212, 191, 0.13); --border2: rgba(16, 185, 129, 0.34);
+      --text: #f0fdf9; --muted: #7da1a8;
+      --green: #10b981; --green-bg: rgba(16,185,129,0.14);
+      --red: #f43f5e; --red-bg: rgba(244,63,94,0.14);
+      --blue: #38bdf8; --blue-bg: rgba(56,189,248,0.14);
+      --yellow: #fbbf24; --yellow-bg: rgba(251,191,36,0.14);
+      --accent: #14b8a6; --accent2: #5eead4; --accent-bg: rgba(20,184,166,0.15);
+      --gold: #34d399; --gold2: #a7f3d0; --gold-bg: rgba(52,211,153,0.14);
+      --radius: 18px; --shadow: 0 14px 38px rgba(0,0,0,0.62), inset 0 1px 0 rgba(94,234,212,0.08);
     }
     [data-theme="light"] {
       --bg: #f3f2f8; --bg2: #eae8f3; --card: rgba(255, 255, 255, 0.94); --card2: rgba(246, 245, 252, 0.95);
@@ -50,13 +45,55 @@ index
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background:
-        radial-gradient(circle at 12% 0%, rgba(167, 139, 250, 0.16), transparent 42%),
-        radial-gradient(circle at 90% 8%, rgba(240, 193, 75, 0.12), transparent 38%),
-        radial-gradient(circle at 50% 100%, rgba(99, 102, 241, 0.1), transparent 50%),
+        radial-gradient(circle at 10% 0%, rgba(16, 185, 129, 0.18), transparent 44%),
+        radial-gradient(circle at 92% 6%, rgba(56, 189, 248, 0.14), transparent 40%),
+        radial-gradient(circle at 50% 100%, rgba(20, 184, 166, 0.12), transparent 55%),
         var(--bg);
       color: var(--text); line-height: 1.5;
       min-height: 100vh; padding: 0 0 52px;
     }
+    .spark-stat {
+      background: linear-gradient(180deg, rgba(16, 35, 41, 0.94), rgba(9, 21, 25, 0.96));
+      border-radius: 15px; padding: 13px 13px 10px;
+      border: 1px solid rgba(45, 212, 191, 0.16);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.32), inset 0 1px 0 rgba(94,234,212,0.07);
+      display: flex; flex-direction: column; justify-content: space-between;
+      position: relative; overflow: hidden;
+    }
+    [data-theme="light"] .spark-stat {
+      background: linear-gradient(180deg, #ffffff, #f6f7fb);
+      border: 1px solid rgba(18, 18, 26, 0.09);
+      box-shadow: 0 6px 16px rgba(15,15,35,0.06);
+    }
+    .spark-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+    .spark-icon {
+      width: 24px; height: 24px; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 700;
+    }
+    .spark-badge {
+      font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 6px;
+    }
+    .spark-canvas-wrap { height: 34px; width: 100%; margin-top: 6px; }
+    .spark-canvas-wrap svg { width: 100%; height: 100%; overflow: visible; display: block; }
+    .donut-layout { display: grid; grid-template-columns: 145px 1fr; gap: 14px; align-items: center; }
+    .donut-box { position: relative; width: 145px; height: 145px; margin: 0 auto; }
+    .donut-center {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; pointer-events: none; text-align: center;
+    }
+    .donut-center .dc-lbl { font-size: 0.62rem; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+    .donut-center .dc-val { font-size: 0.92rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+    .donut-legend { display: flex; flex-direction: column; gap: 7px; }
+    .dl-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; font-weight: 600; }
+    .dl-left { display: flex; align-items: center; gap: 7px; }
+    .dl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .gauge-wrap { position: relative; width: 100%; max-width: 270px; margin: 4px auto 0; text-align: center; }
+    .gauge-wrap svg { width: 100%; height: auto; display: block; }
+    .gauge-readout { margin-top: -36px; position: relative; z-index: 2; }
+    .gauge-score { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; }
+    .gauge-label { font-size: 0.78rem; font-weight: 700; margin-top: 2px; }
+    .gauge-sub { font-size: 0.68rem; color: var(--muted); margin-top: 6px; }
     [data-theme="light"] body {
       background:
         radial-gradient(circle at 15% 0%, rgba(124, 58, 237, 0.08), transparent 42%),
@@ -557,13 +594,48 @@ index
           <div class="tag-filter-row" id="pairFilterRow"></div>
           <div class="tag-filter-row" id="setupFilterRow"></div>
           <div class="tag-filter-row" id="tagFilterRow"></div>
-          <div class="card-title"><div class="card-title-left"><span class="dot"></span> Ringkasan & Drawdown</div></div>
+          <div class="card-title">
+            <div class="card-title-left"><span class="dot"></span> Terminal Overview</div>
+            <span style="font-size:0.65rem;color:var(--accent2)" id="ddSummaryBadge">Max DD: -</span>
+          </div>
           <div class="stats-grid" id="statsGrid"></div>
         </div>
 
         <div class="card">
-          <div class="card-title"><div class="card-title-left"><span class="dot"></span> Minggu Ini vs Lalu</div></div>
-          <div class="week-grid" id="weekCompare"></div>
+          <div class="card-title">
+            <div class="card-title-left"><span class="dot"></span> Alokasi Pair / Setup</div>
+            <div style="display:flex;gap:4px;">
+              <button class="tag-filter active" id="btnDonutPair" onclick="setDonutMode('pair')">Pair</button>
+              <button class="tag-filter" id="btnDonutSetup" onclick="setDonutMode('setup')">Setup</button>
+            </div>
+          </div>
+          <div class="donut-layout">
+            <div class="donut-box">
+              <canvas id="allocationDonut"></canvas>
+              <div class="donut-center">
+                <span class="dc-lbl" id="donutCenterLabel">Total</span>
+                <span class="dc-val" id="donutCenterValue">0</span>
+              </div>
+            </div>
+            <div class="donut-legend" id="donutLegend"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-left"><span class="dot"></span> Skor Disiplin & Win Rate</div>
+            <span style="font-size:0.65rem;color:var(--muted)">0 – 100%</span>
+          </div>
+          <div class="gauge-wrap" id="disciplineGaugeBox"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-left"><span class="dot"></span> Performa Mingguan (Sen – Min)</div>
+            <span style="font-size:0.64rem;color:var(--muted)">Minggu Ini vs Lalu</span>
+          </div>
+          <div class="week-grid" id="weekCompare" style="margin-bottom:12px;"></div>
+          <div class="chart-wrap" style="height:175px;"><canvas id="weeklyBarChart"></canvas></div>
         </div>
 
         <div class="card">
@@ -723,6 +795,9 @@ index
     let balanceLogs = [];
     let currentFilter = 'all';
     let equityChart = null;
+    let allocationDonutChart = null;
+    let weeklyBarChartInstance = null;
+    let donutMode = 'pair';
     let selectedTags = [];
     let activeTagFilter = null;
     let activeSetupFilter = null;
@@ -853,7 +928,7 @@ index
       h.setAttribute('data-theme', isLight ? '' : 'light');
       document.getElementById('themeBtn').textContent = isLight ? '🌙' : '☀️';
       localStorage.setItem('mt5_theme', isLight ? 'dark' : 'light');
-      if (equityChart) updateChart(getFilteredTrades());
+      if (trades.length) render();
     }
 
     if (localStorage.getItem('mt5_theme') === 'light') {
@@ -1064,7 +1139,10 @@ index
     }
 
     document.querySelectorAll('#preChecklist input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', saveChecklist);
+      cb.addEventListener('change', () => {
+        saveChecklist();
+        if (trades.length) updateDisciplineGauge(getFilteredTrades());
+      });
     });
 
     // === Kalkulator Lot Cent ===
@@ -1992,6 +2070,158 @@ Data sekarang akan diganti.`)) return;
       });
     });
 
+    function setDonutMode(mode) {
+      donutMode = mode === 'setup' ? 'setup' : 'pair';
+      const bp = document.getElementById('btnDonutPair');
+      const bs = document.getElementById('btnDonutSetup');
+      if (bp) bp.classList.toggle('active', donutMode === 'pair');
+      if (bs) bs.classList.toggle('active', donutMode === 'setup');
+      updateDonutChart(getFilteredTrades());
+    }
+
+    function buildSparklineSVG(series, color, gradId) {
+      const pts = (series && series.length >= 2) ? series : [0, 0];
+      const min = Math.min(...pts);
+      const max = Math.max(...pts);
+      const span = (max - min) || 1;
+      const w = 140, h = 34, padY = 4;
+      const coords = pts.map((v, i) => {
+        const x = (i / (pts.length - 1)) * w;
+        const y = h - padY - ((v - min) / span) * (h - padY * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      const linePath = `M ${coords.join(' L ')}`;
+      const areaPath = `${linePath} L ${w},${h} L 0,${h} Z`;
+      const last = coords[coords.length - 1].split(',');
+      return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${color}" stop-opacity="0.36"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <path d="${areaPath}" fill="url(#${gradId})"/>
+        <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${last[0]}" cy="${last[1]}" r="2.6" fill="${color}"/>
+      </svg>`;
+    }
+
+    function updateDonutChart(filtered) {
+      const canvas = document.getElementById('allocationDonut');
+      if (!canvas) return;
+      const counts = {};
+      filtered.forEach(t => {
+        const key = donutMode === 'setup'
+          ? (t.setup || 'Tanpa Setup')
+          : (t.symbol || 'Unknown');
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const palette = ['#10b981', '#38bdf8', '#a78bfa', '#f59e0b', '#f43f5e', '#14b8a6', '#ec4899'];
+      const labels = entries.map(e => e[0]);
+      const values = entries.map(e => e[1]);
+      const total = values.reduce((s, v) => s + v, 0);
+
+      document.getElementById('donutCenterLabel').textContent = donutMode === 'setup' ? 'Setup' : 'Trades';
+      document.getElementById('donutCenterValue').textContent = String(total);
+
+      if (allocationDonutChart) allocationDonutChart.destroy();
+      allocationDonutChart = new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: values.length ? values : [1],
+            backgroundColor: values.length ? labels.map((_, i) => palette[i % palette.length]) : ['#1e293b'],
+            borderWidth: 0,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '70%',
+          plugins: { legend: { display: false }, tooltip: { enabled: values.length > 0 } }
+        }
+      });
+
+      const legendEl = document.getElementById('donutLegend');
+      if (!entries.length) {
+        legendEl.innerHTML = '<div style="font-size:0.74rem;color:var(--muted)">Belum ada data</div>';
+        return;
+      }
+      legendEl.innerHTML = entries.slice(0, 5).map(([lbl, cnt], i) => {
+        const pct = total ? Math.round((cnt / total) * 100) : 0;
+        const col = palette[i % palette.length];
+        return `<div class="dl-item">
+          <div class="dl-left"><span class="dl-dot" style="background:${col}"></span><span>${escapeHTML(lbl)}</span></div>
+          <span style="color:var(--muted)">${pct}% <small>(${cnt})</small></span>
+        </div>`;
+      }).join('');
+    }
+
+    function updateDisciplineGauge(filtered) {
+      const box = document.getElementById('disciplineGaugeBox');
+      if (!box) return;
+      const total = filtered.length;
+      const wins = filtered.filter(t => (t.profit || 0) > 0).length;
+      const wr = total ? (wins / total) * 100 : 0;
+
+      // Hitung skor disiplin gabungan: Win Rate (50%), Checklist aktif (25%), Tanpa tag FOMO / Setup jelas (25%)
+      const chkTotal = document.querySelectorAll('#preChecklist input[type="checkbox"]').length || 4;
+      const chkDone = document.querySelectorAll('#preChecklist input[type="checkbox"]:checked').length;
+      const chkScore = (chkDone / chkTotal) * 25;
+
+      const disciplinedTrades = filtered.filter(t => {
+        const hasFomo = (t.tags || []).some(tg => /fomo/i.test(tg)) || /fomo/i.test(t.setup || '');
+        return !hasFomo;
+      }).length;
+      const planScore = total ? (disciplinedTrades / total) * 25 : 25;
+      const score = Math.round(Math.min(100, Math.max(0, (wr * 0.5) + chkScore + planScore)));
+
+      let statusText = 'Perlu Evaluasi';
+      let statusColor = '#f43f5e';
+      if (score >= 75) { statusText = 'Disiplin Tinggi'; statusColor = '#10b981'; }
+      else if (score >= 55) { statusText = 'Cukup Terjaga'; statusColor = '#38bdf8'; }
+      else if (score >= 40) { statusText = 'Waspada Emosi'; statusColor = '#fbbf24'; }
+
+      // Semicircle arc length = pi * r = 3.14159 * 96 ≈ 301.6
+      const r = 96;
+      const arcLen = Math.PI * r;
+      const dashOffset = arcLen * (1 - score / 100);
+
+      // Needle endpoint
+      const angleRad = Math.PI * (1 - score / 100);
+      const cx = 130, cy = 118;
+      const nx = cx + (r - 14) * Math.cos(angleRad);
+      const ny = cy - (r - 14) * Math.sin(angleRad);
+
+      box.innerHTML = `
+        <svg viewBox="0 0 260 135">
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#f43f5e"/>
+              <stop offset="45%" stop-color="#fbbf24"/>
+              <stop offset="75%" stop-color="#38bdf8"/>
+              <stop offset="100%" stop-color="#10b981"/>
+            </linearGradient>
+          </defs>
+          <path d="M 34 118 A 96 96 0 0 1 226 118" fill="none" stroke="rgba(148,163,184,0.16)" stroke-width="16" stroke-linecap="round"/>
+          <path d="M 34 118 A 96 96 0 0 1 226 118" fill="none" stroke="url(#gaugeGrad)" stroke-width="16" stroke-linecap="round"
+                stroke-dasharray="${arcLen.toFixed(1)}" stroke-dashoffset="${dashOffset.toFixed(1)}"/>
+          <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="${statusColor}" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="${cx}" cy="${cy}" r="6" fill="${statusColor}"/>
+          <text x="26" y="133" font-size="10" fill="var(--muted)" font-weight="700">0</text>
+          <text x="224" y="133" font-size="10" fill="var(--muted)" font-weight="700">100</text>
+        </svg>
+        <div class="gauge-readout">
+          <div class="gauge-score" style="color:${statusColor}">${score}%</div>
+          <div class="gauge-label" style="color:${statusColor}">${statusText}</div>
+          <div class="gauge-sub">Win Rate ${wr.toFixed(0)}% · Checklist ${chkDone}/${chkTotal} · Non-FOMO ${disciplinedTrades}/${total}</div>
+        </div>
+      `;
+    }
+
     function updateChart(filtered) {
       const sorted = [...filtered].reverse();
       let cum = 0;
@@ -2349,9 +2579,13 @@ Data sekarang akan diganti.`)) return;
 
     function updateWeekCompare() {
       const now = new Date();
-      const thisStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      // Awal minggu Senin (Monday-based week)
+      const dayOfWeek = (now.getDay() + 6) % 7; // 0 = Senin ... 6 = Minggu
+      const thisStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
       const lastStart = new Date(thisStart.getFullYear(), thisStart.getMonth(), thisStart.getDate() - 7);
       let thisNet = 0, thisC = 0, lastNet = 0, lastC = 0;
+      const thisDaily = [0, 0, 0, 0, 0, 0, 0];
+      const lastDaily = [0, 0, 0, 0, 0, 0, 0];
 
       const baseList = activeCurrencyFilter ? trades.filter(t => (t.currency || 'CHC') === activeCurrencyFilter) : trades;
       const curr = getDisplayCurrency(baseList);
@@ -2359,12 +2593,15 @@ Data sekarang akan diganti.`)) return;
       baseList.forEach(t => {
         const d = parseTradeDate(t);
         if (!d) return;
+        const idx = (d.getDay() + 6) % 7;
         if (d >= thisStart) {
           thisNet += (t.profit || 0);
           thisC++;
+          thisDaily[idx] += (t.profit || 0);
         } else if (d >= lastStart && d < thisStart) {
           lastNet += (t.profit || 0);
           lastC++;
+          lastDaily[idx] += (t.profit || 0);
         }
       });
 
@@ -2377,6 +2614,65 @@ Data sekarang akan diganti.`)) return;
           <div class="wl">Minggu Lalu · ${lastC} trade</div>
           <div class="wv ${lastNet >= 0 ? 'g' : 'r'}">${formatMoney(lastNet, curr)}</div>
         </div>`;
+
+      const barCanvas = document.getElementById('weeklyBarChart');
+      if (barCanvas) {
+        if (weeklyBarChartInstance) weeklyBarChartInstance.destroy();
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        weeklyBarChartInstance = new Chart(barCanvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+            datasets: [
+              {
+                label: 'Minggu Ini',
+                data: thisDaily.map(v => Number(v.toFixed(2))),
+                backgroundColor: '#10b981',
+                borderRadius: 5,
+                barPercentage: 0.65,
+                categoryPercentage: 0.72
+              },
+              {
+                label: 'Minggu Lalu',
+                data: lastDaily.map(v => Number(v.toFixed(2))),
+                backgroundColor: isLight ? 'rgba(100,116,139,0.35)' : 'rgba(56,189,248,0.32)',
+                borderRadius: 5,
+                barPercentage: 0.65,
+                categoryPercentage: 0.72
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                align: 'end',
+                labels: {
+                  boxWidth: 8,
+                  boxHeight: 8,
+                  usePointStyle: true,
+                  pointStyle: 'circle',
+                  color: isLight ? '#66667a' : '#7da1a8',
+                  font: { size: 10, family: 'Inter', weight: '600' }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: isLight ? '#66667a' : '#7da1a8', font: { size: 10, family: 'Inter' } },
+                grid: { display: false }
+              },
+              y: {
+                ticks: { color: isLight ? '#66667a' : '#7da1a8', font: { size: 10, family: 'Inter' } },
+                grid: { color: isLight ? '#e2e2ea' : 'rgba(45,212,191,0.08)', drawBorder: false }
+              }
+            }
+          }
+        });
+      }
     }
 
     function csvCell(val) {
@@ -2508,18 +2804,107 @@ Data sekarang akan diganti.`)) return;
       const streak = calcStreak(filtered);
       const maxDD = calcMaxDrawdown(filtered);
 
-      const centSub = (curr === 'CHC' || curr === 'USC')
-        ? `<div class="sub">≈ ${formatMoney(net / 100, curr === 'CHC' ? 'CHF' : 'USD')}</div>`
-        : '';
+      const initBal = parseFloat(document.getElementById('initialBalance').value) || 0;
+      const totalAllNet = trades.reduce((s, t) => s + (t.profit || 0), 0);
+      const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
+      const totalWD = balanceLogs.filter(x => x.type === 'withdraw').reduce((s, x) => s + x.amount, 0);
+      const curBal = initBal + totalAllNet + totalDep - totalWD;
+      const baseCapital = initBal + totalDep;
+      const growthPct = baseCapital > 0 ? ((totalAllNet / baseCapital) * 100) : 0;
+
+      // Hitung seri sparkline kronologis (dari trade terlama ke terbaru)
+      const chrono = [...filtered].reverse();
+      let runBal = initBal + totalDep - totalWD;
+      let runNet = 0, runW = 0, runGP = 0, runGL = 0;
+      const balSeries = [runBal];
+      const netSeries = [0];
+      const wrSeries = [];
+      const pfSeries = [];
+
+      chrono.forEach((t, idx) => {
+        const p = t.profit || 0;
+        runBal += p;
+        runNet += p;
+        if (p > 0) { runW++; runGP += p; }
+        else if (p < 0) { runGL += Math.abs(p); }
+        balSeries.push(runBal);
+        netSeries.push(runNet);
+        wrSeries.push((runW / (idx + 1)) * 100);
+        pfSeries.push(runGL > 0 ? Math.min(5, runGP / runGL) : (runGP > 0 ? 3 : 0));
+      });
+
+      const ddBadge = document.getElementById('ddSummaryBadge');
+      if (ddBadge) ddBadge.textContent = `Max DD: ${formatMoney(-maxDD, curr)}`;
+
+      const balSub = (curr === 'CHC' || curr === 'USC')
+        ? `≈ ${formatMoney(curBal / 100, curr === 'CHC' ? 'CHF' : 'USD')}`
+        : `Modal: ${formatMoney(baseCapital, curr)}`;
+      const netSub = (curr === 'CHC' || curr === 'USC')
+        ? `≈ ${formatMoney(net / 100, curr === 'CHC' ? 'CHF' : 'USD')}`
+        : `${filtered.length} posisi`;
+
+      const balColor = curBal >= baseCapital ? '#10b981' : '#f43f5e';
+      const netColor = net >= 0 ? '#10b981' : '#f43f5e';
+      const wrColor = wr >= 0.5 ? '#a78bfa' : '#fbbf24';
+      const pfColor = pf >= 1.5 ? '#38bdf8' : pf >= 1 ? '#fbbf24' : '#f43f5e';
 
       document.getElementById('statsGrid').innerHTML = `
-        <div class="stat"><div class="label">Net Profit</div><div class="value ${net >= 0 ? 'g' : 'r'}">${formatMoney(net, curr)}</div>${centSub}</div>
-        <div class="stat"><div class="label">Max Drawdown</div><div class="value r">${formatMoney(-maxDD, curr)}</div></div>
-        <div class="stat"><div class="label">Win Rate</div><div class="value ${wr >= 0.5 ? 'g' : 'y'}">${(wr * 100).toFixed(1)}%</div><div class="sub">${wins}W / ${losses}L (${filtered.length} trade)</div></div>
-        <div class="stat"><div class="label">Profit Factor</div><div class="value ${pf >= 1.5 ? 'g' : pf >= 1 ? 'y' : 'r'}">${pf === Infinity ? '∞' : pf.toFixed(2)}</div><div class="sub">Streak: ${streak.maxWin}W · ${streak.maxLoss}L</div></div>
+        <div class="spark-stat">
+          <div>
+            <div class="spark-top">
+              <span class="spark-icon" style="background:rgba(16,185,129,0.16);color:#10b981">💼</span>
+              <span class="spark-badge ${growthPct >= 0 ? 'g' : 'r'}" style="background:${growthPct >= 0 ? 'var(--green-bg)' : 'var(--red-bg)'}">${baseCapital > 0 ? (growthPct >= 0 ? '+' : '') + growthPct.toFixed(1) + '%' : 'AKTIF'}</span>
+            </div>
+            <div class="label">Saldo Aktif</div>
+            <div class="value ${curBal >= 0 ? 'g' : 'r'}">${formatMoney(curBal, curr)}</div>
+            <div class="sub">${balSub}</div>
+          </div>
+          <div class="spark-canvas-wrap">${buildSparklineSVG(balSeries, balColor, 'spkBal')}</div>
+        </div>
+
+        <div class="spark-stat">
+          <div>
+            <div class="spark-top">
+              <span class="spark-icon" style="background:rgba(56,189,248,0.16);color:#38bdf8">📈</span>
+              <span class="spark-badge ${net >= 0 ? 'g' : 'r'}" style="background:${net >= 0 ? 'var(--green-bg)' : 'var(--red-bg)'}">${net >= 0 ? 'PROFIT' : 'LOSS'}</span>
+            </div>
+            <div class="label">Net Profit</div>
+            <div class="value ${net >= 0 ? 'g' : 'r'}">${formatMoney(net, curr)}</div>
+            <div class="sub">${netSub}</div>
+          </div>
+          <div class="spark-canvas-wrap">${buildSparklineSVG(netSeries, netColor, 'spkNet')}</div>
+        </div>
+
+        <div class="spark-stat">
+          <div>
+            <div class="spark-top">
+              <span class="spark-icon" style="background:rgba(167,139,250,0.16);color:#a78bfa">🎯</span>
+              <span class="spark-badge" style="background:rgba(167,139,250,0.15);color:#c4b5fd">${wins}W/${losses}L</span>
+            </div>
+            <div class="label">Win Rate</div>
+            <div class="value ${wr >= 0.5 ? 'g' : 'y'}">${(wr * 100).toFixed(1)}%</div>
+            <div class="sub">Streak: ${streak.maxWin}W · ${streak.maxLoss}L</div>
+          </div>
+          <div class="spark-canvas-wrap">${buildSparklineSVG(wrSeries, wrColor, 'spkWr')}</div>
+        </div>
+
+        <div class="spark-stat">
+          <div>
+            <div class="spark-top">
+              <span class="spark-icon" style="background:rgba(52,211,153,0.16);color:#34d399">⚡</span>
+              <span class="spark-badge" style="background:rgba(56,189,248,0.15);color:#7dd3fc">${pf >= 1.5 ? 'STRONG' : pf >= 1 ? 'STABLE' : 'LOW'}</span>
+            </div>
+            <div class="label">Profit Factor</div>
+            <div class="value ${pf >= 1.5 ? 'g' : pf >= 1 ? 'y' : 'r'}">${pf === Infinity ? '∞' : pf.toFixed(2)}</div>
+            <div class="sub">RR & Rasio Untung/Rugi</div>
+          </div>
+          <div class="spark-canvas-wrap">${buildSparklineSVG(pfSeries, pfColor, 'spkPf')}</div>
+        </div>
       `;
 
       updateTargetUI(filtered);
+      updateDonutChart(filtered);
+      updateDisciplineGauge(filtered);
       updateChart(filtered);
       updateSessionStats(filtered);
       updateCloseReasonStats(filtered);
