@@ -508,8 +508,24 @@
           </div>
         </div>
 
+        <div class="field" style="margin-bottom:10px;">
+          <label>Setup Entry (opsional)</label>
+          <select id="tradeSetup">
+            <option value="">-- Pilih Setup --</option>
+            <option value="FVG">Fair Value Gap (FVG)</option>
+            <option value="Supply & Demand">Supply & Demand Zone</option>
+            <option value="Liquidity Sweep">Liquidity Sweep / Stop Hunt</option>
+            <option value="Breakout">Breakout / Retest</option>
+            <option value="Trend Pullback">Trend Pullback (M5/M15)</option>
+            <option value="News / Macro">News / Data Makro</option>
+            <option value="Impulse / FOMO">Impulse / Tanpa Setup</option>
+          </select>
+        </div>
+
         <div style="font-size:0.7rem;font-weight:600;color:var(--muted);margin-bottom:6px;">TAG (opsional)</div>
         <div class="tag-row">
+          <button class="tag-btn" data-tag="FVG" onclick="toggleTag(this)">FVG</button>
+          <button class="tag-btn" data-tag="SnD" onclick="toggleTag(this)">Supply/Demand</button>
           <button class="tag-btn" data-tag="Scalping" onclick="toggleTag(this)">Scalping</button>
           <button class="tag-btn" data-tag="Swing" onclick="toggleTag(this)">Swing</button>
           <button class="tag-btn" data-tag="Breakout" onclick="toggleTag(this)">Breakout</button>
@@ -534,6 +550,7 @@
           </div>
           <div class="tag-filter-row" id="currencyFilterRow"></div>
           <div class="tag-filter-row" id="pairFilterRow"></div>
+          <div class="tag-filter-row" id="setupFilterRow"></div>
           <div class="tag-filter-row" id="tagFilterRow"></div>
           <div class="card-title"><div class="card-title-left"><span class="dot"></span> Ringkasan & Drawdown</div></div>
           <div class="stats-grid" id="statsGrid"></div>
@@ -590,6 +607,14 @@
         </div>
 
         <div class="card">
+          <div class="card-title"><div class="card-title-left"><span class="dot"></span> Analisa Per Setup Entry</div></div>
+          <table class="data-table">
+            <thead><tr><th>Setup</th><th>Trades</th><th>Win%</th><th>Net</th></tr></thead>
+            <tbody id="setupBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
           <div class="card-title"><div class="card-title-left"><span class="dot"></span> Per Tag</div></div>
           <table class="data-table">
             <thead><tr><th>Tag</th><th>Trades</th><th>Win%</th><th>Net</th></tr></thead>
@@ -598,13 +623,56 @@
         </div>
 
         <div class="card">
-          <div class="card-title"><div class="card-title-left"><span class="dot"></span> Trades (<span id="jumlahTrade">0</span>)</div></div>
+          <div class="card-title">
+            <div class="card-title-left"><span class="dot"></span> Trades (<span id="jumlahTrade">0</span>)</div>
+            <button class="rmv" id="btnResetSearch" onclick="resetSearchFilters()" style="display:none">Reset Cari</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+            <input type="text" id="searchQuery" class="text-input" placeholder="🔍 Cari pair, ticket #, catatan, atau setup..." oninput="render()" />
+            <div class="grid-2">
+              <div class="field"><label>Dari Tanggal</label><input type="date" id="dateFrom" onchange="render()" /></div>
+              <div class="field"><label>Sampai Tanggal</label><input type="date" id="dateTo" onchange="render()" /></div>
+            </div>
+          </div>
           <div id="tradesList"></div>
           <div class="btn-row" style="margin-top:14px;">
             <button class="btn btn-ghost" onclick="exportCSV()">📥 CSV</button>
             <button class="btn btn-ghost" onclick="shareHasil()">📤 Share</button>
             <button class="btn btn-danger" onclick="hapusSemuaTrade()">Hapus Semua</button>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-left"><span class="dot"></span> Evaluasi Harian & Mingguan</div>
+            <span style="font-size:0.65rem;color:var(--muted)" id="evalSavedBadge">Tersimpan</span>
+          </div>
+          <div class="grid-2" style="margin-bottom:10px;">
+            <div class="field">
+              <label>Periode Evaluasi</label>
+              <select id="evalPeriodType" onchange="loadEvalJournal()">
+                <option value="daily">Harian (Hari Ini)</option>
+                <option value="weekly">Mingguan (Minggu Ini)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tanggal Acuan</label>
+              <input type="date" id="evalDateKey" onchange="loadEvalJournal()" />
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>✅ Hal Baik / Sesuai Plan</label>
+            <input type="text" id="evalGood" class="text-input" placeholder="Misal: Sabar nunggu FVG M15 konfirmasi..." oninput="saveEvalJournal()" />
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>⚠️ Kesalahan / Mistake Terbesar</label>
+            <input type="text" id="evalMistake" class="text-input" placeholder="Misal: Overlot pas news CPI, buru-buru entry..." oninput="saveEvalJournal()" />
+          </div>
+          <div class="field">
+            <label>🎯 Fokus Perbaikan Berikutnya</label>
+            <input type="text" id="evalNextFocus" class="text-input" placeholder="Misal: Maksimal 2 entry per sesi, wajib pakai SL..." oninput="saveEvalJournal()" />
+          </div>
+          <div id="evalHistoryList" style="margin-top:10px;"></div>
         </div>
 
         <div class="card">
@@ -652,8 +720,10 @@
     let equityChart = null;
     let selectedTags = [];
     let activeTagFilter = null;
+    let activeSetupFilter = null;
     let activeCurrencyFilter = null;
     let activePairFilter = null;
+    let evalLogs = {};
     let deferredPrompt = null;
 
     const MONTH_MAP = {
@@ -813,6 +883,7 @@
         profit,
         currency: curr,
         closeReason: String(raw.closeReason || '').slice(0, 30),
+        setup: String(raw.setup || '').trim().slice(0, 40),
         note: String(raw.note || '').trim().slice(0, 200),
         openTime: String(raw.openTime || '').slice(0, 30),
         closeTime: String(raw.closeTime || '').slice(0, 30),
@@ -922,18 +993,20 @@
       const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
       const curr = balanceLogs[0].currency || 'CHC';
 
-      let summary = `<div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);padding:6px 0;border-top:1px solid var(--border);margin-top:4px;">`;
-      summary += `<span>Total WD: <strong style="color:var(--gold2)">${formatMoney(-totalWD, curr)}</strong></span>`;
-      if (totalDep > 0) summary += `<span>Deposit: <strong class="g">+${totalDep.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}</strong></span>`;
+      const wdCentEq = getCentSubtext(-totalWD, curr);
+      let summary = `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:0.72rem;color:var(--muted);padding:6px 0;border-top:1px solid var(--border);margin-top:4px;">`;
+      summary += `<span>Total WD: <strong style="color:var(--gold2)">${formatMoney(-totalWD, curr)}</strong>${wdCentEq}</span>`;
+      if (totalDep > 0) summary += `<span>Deposit: <strong class="g">+${totalDep.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}</strong>${getCentSubtext(totalDep, curr)}</span>`;
       summary += `</div>`;
 
       const items = balanceLogs.slice(0, 5).map(m => {
         const isWD = m.type === 'withdraw';
         const sign = isWD ? '-' : '+';
         const cls = isWD ? 'style="color:var(--gold2);font-weight:700"' : 'class="g" style="font-weight:700"';
+        const eq = getCentSubtext(isWD ? -m.amount : m.amount, m.currency);
         return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;padding:5px 8px;background:var(--card2);border:1px solid var(--border);border-radius:9px;margin-top:5px;">
           <div>
-            <span ${cls}>${isWD ? '💸 WD' : '➕ Deposit'} ${sign}${m.amount.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${escapeHTML(m.currency)}</span>
+            <span ${cls}>${isWD ? '💸 WD' : '➕ Deposit'} ${sign}${m.amount.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${escapeHTML(m.currency)}</span><span style="color:var(--muted)">${eq}</span>
             <span style="color:var(--muted);margin-left:6px;">${escapeHTML(m.date)}${m.note ? ' · ' + escapeHTML(m.note) : ''}</span>
           </div>
           <button class="rmv" onclick="hapusMutasiSaldo('${escapeHTML(m.id)}')" title="Hapus">✕</button>
@@ -1008,10 +1081,11 @@
     // === Backup & Restore ===
     function backupData() {
       const data = {
-        version: 5,
+        version: 6,
         exportedAt: new Date().toISOString(),
         trades,
         balanceLogs,
+        evalLogs,
         initialBalance: document.getElementById('initialBalance').value,
         targetProfit: document.getElementById('targetProfit').value,
         targetLoss: document.getElementById('targetLoss').value
@@ -1052,6 +1126,11 @@ Data sekarang akan diganti.`)) return;
           if (data.initialBalance != null) document.getElementById('initialBalance').value = data.initialBalance;
           if (data.targetProfit != null) document.getElementById('targetProfit').value = data.targetProfit;
           if (data.targetLoss != null) document.getElementById('targetLoss').value = data.targetLoss;
+          if (data.evalLogs && typeof data.evalLogs === 'object') {
+            evalLogs = data.evalLogs;
+            localStorage.setItem('mt5_eval_logs', JSON.stringify(evalLogs));
+            loadEvalJournal();
+          }
           saveTrades();
           saveBalanceLogs();
           saveTargets();
@@ -1501,6 +1580,21 @@ Data sekarang akan diganti.`)) return;
       return 'New York / US (20-07 WIB)';
     }
 
+    function setSetupFilter(setup) {
+      activeSetupFilter = activeSetupFilter === setup ? null : setup;
+      render();
+    }
+
+    function resetSearchFilters() {
+      const q = document.getElementById('searchQuery');
+      const df = document.getElementById('dateFrom');
+      const dt = document.getElementById('dateTo');
+      if (q) q.value = '';
+      if (df) df.value = '';
+      if (dt) dt.value = '';
+      render();
+    }
+
     function getFilteredTrades() {
       let list = trades;
       if (currentFilter !== 'all') {
@@ -1521,8 +1615,34 @@ Data sekarang akan diganti.`)) return;
       if (activePairFilter) {
         list = list.filter(t => (t.symbol || 'Unknown') === activePairFilter);
       }
+      if (activeSetupFilter) {
+        list = list.filter(t => (t.setup || '') === activeSetupFilter);
+      }
       if (activeTagFilter) {
         list = list.filter(t => (t.tags || []).includes(activeTagFilter));
+      }
+
+      const qVal = (document.getElementById('searchQuery')?.value || '').trim().toLowerCase();
+      const dFrom = document.getElementById('dateFrom')?.value || '';
+      const dTo = document.getElementById('dateTo')?.value || '';
+      const btnReset = document.getElementById('btnResetSearch');
+      if (btnReset) btnReset.style.display = (qVal || dFrom || dTo) ? 'inline-block' : 'none';
+
+      if (qVal) {
+        list = list.filter(t => {
+          const hay = `${t.symbol} ${t.ticket} ${t.note} ${t.setup} ${(t.tags || []).join(' ')} ${t.closeReason}`.toLowerCase();
+          return hay.includes(qVal);
+        });
+      }
+      if (dFrom || dTo) {
+        list = list.filter(t => {
+          const d = parseTradeDate(t);
+          if (!d) return false;
+          const k = toLocalDateKey(d);
+          if (dFrom && k < dFrom) return false;
+          if (dTo && k > dTo) return false;
+          return true;
+        });
       }
       return list;
     }
@@ -1545,9 +1665,11 @@ Data sekarang akan diganti.`)) return;
       }
 
       const note = document.getElementById('tradeNote').value.trim();
+      const setup = document.getElementById('tradeSetup')?.value || '';
       for (const data of [...baru].reverse()) {
         trades.unshift({
           ...data,
+          setup,
           note,
           tags: [...selectedTags],
           id: makeId()
@@ -1558,6 +1680,7 @@ Data sekarang akan diganti.`)) return;
       resetImage();
       document.getElementById('pasteArea').value = '';
       document.getElementById('tradeNote').value = '';
+      if (document.getElementById('tradeSetup')) document.getElementById('tradeSetup').value = '';
       document.getElementById('btnTambah').disabled = true;
       clearTags();
       render();
@@ -1578,6 +1701,7 @@ Data sekarang akan diganti.`)) return;
       const selectedCurr = document.getElementById('defaultCurrency')?.value || 'AUTO';
       const currency = selectedCurr !== 'AUTO' ? selectedCurr : (parsed.currency || 'CHC');
       const note = document.getElementById('tradeNote').value.trim();
+      const setup = document.getElementById('tradeSetup')?.value || '';
 
       trades.unshift({
         id: makeId(),
@@ -1587,6 +1711,7 @@ Data sekarang akan diganti.`)) return;
         profit,
         currency,
         closeReason: parsed.closeReason || 'Batas Untung (TP)',
+        setup,
         note,
         openTime: parsed.openTime || '',
         closeTime: parsed.closeTime || toLocalDateKey(new Date()),
@@ -1600,6 +1725,7 @@ Data sekarang akan diganti.`)) return;
       resetImage();
       document.getElementById('pasteArea').value = '';
       document.getElementById('tradeNote').value = '';
+      if (document.getElementById('tradeSetup')) document.getElementById('tradeSetup').value = '';
       clearTags();
       render();
     }
@@ -1685,13 +1811,22 @@ Data sekarang akan diganti.`)) return;
       return set.size === 1 ? [...set][0] : '';
     }
 
+    function getCentSubtext(amount, curr) {
+      const c = (curr || 'CHC').toUpperCase();
+      if (c !== 'CHC' && c !== 'USC') return '';
+      const mainCurr = c === 'CHC' ? 'CHF' : 'USD';
+      const val = (Number(amount) || 0) / 100;
+      const formatted = val.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return ` (≈ ${val > 0 ? '+' : ''}${formatted} ${mainCurr})`;
+    }
+
     function updateTargetUI(filtered) {
       const initBal = parseFloat(document.getElementById('initialBalance').value) || 0;
       const tp = parseFloat(document.getElementById('targetProfit').value) || 0;
       const tl = parseFloat(document.getElementById('targetLoss').value) || 0;
       const totalAllNet = trades.reduce((s, t) => s + (t.profit || 0), 0);
       const net = filtered.reduce((s, t) => s + (t.profit || 0), 0);
-      const curr = getDisplayCurrency(filtered);
+      const curr = getDisplayCurrency(filtered) || 'CHC';
 
       const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
       const totalWD = balanceLogs.filter(x => x.type === 'withdraw').reduce((s, x) => s + x.amount, 0);
@@ -1702,7 +1837,8 @@ Data sekarang akan diganti.`)) return;
         const baseCapital = initBal + totalDep;
         const growth = baseCapital > 0 ? ((totalAllNet / baseCapital) * 100) : 0;
         const growthText = baseCapital > 0 ? `PnL ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%` : 'Tanpa modal awal';
-        balEl.innerHTML = `<span>Saldo Aktif: <strong class="${curBal >= 0 ? 'g' : 'r'}">${formatMoney(curBal, curr)}</strong></span><span class="${growth >= 0 ? 'g' : 'r'}">${growthText}</span>`;
+        const centEq = getCentSubtext(curBal, curr);
+        balEl.innerHTML = `<span>Saldo Aktif: <strong class="${curBal >= 0 ? 'g' : 'r'}">${formatMoney(curBal, curr)}</strong><span style="font-size:0.7rem;color:var(--muted)">${centEq}</span></span><span class="${growth >= 0 ? 'g' : 'r'}">${growthText}</span>`;
         const calcInput = document.getElementById('calcBalance');
         if (calcInput && document.activeElement !== calcInput) {
           calcInput.value = Math.max(0, curBal).toFixed(2);
@@ -1929,6 +2065,126 @@ Data sekarang akan diganti.`)) return;
       `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Belum ada data</td></tr>';
     }
 
+    function editSetup(id) {
+      const t = trades.find(x => x.id === id);
+      if (!t) return;
+      const input = prompt('Setup Entry (contoh: FVG, Supply & Demand, Breakout, Liquidity Sweep):', t.setup || '');
+      if (input === null) return;
+      t.setup = input.trim().slice(0, 40);
+      saveTrades();
+      render();
+    }
+
+    function updateSetupStats(filtered) {
+      const curr = getDisplayCurrency(filtered);
+      const bySetup = {};
+      filtered.forEach(t => {
+        const st = t.setup || '(tanpa setup)';
+        if (!bySetup[st]) bySetup[st] = { trades: 0, wins: 0, profit: 0 };
+        bySetup[st].trades++;
+        bySetup[st].profit += (t.profit || 0);
+        if ((t.profit || 0) > 0) bySetup[st].wins++;
+      });
+      const sorted = Object.entries(bySetup).sort((a, b) => b[1].profit - a[1].profit);
+      document.getElementById('setupBody').innerHTML = sorted.map(([st, s]) => `
+        <tr>
+          <td style="font-weight:700">${escapeHTML(st)}</td>
+          <td>${s.trades}</td>
+          <td>${s.trades ? ((s.wins / s.trades) * 100).toFixed(0) : 0}%</td>
+          <td class="${s.profit >= 0 ? 'g' : 'r'}" style="font-weight:700">${formatMoney(s.profit, curr)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Belum ada data setup</td></tr>';
+    }
+
+    function updateSetupFilters() {
+      const allSetups = new Set();
+      trades.forEach(t => { if (t.setup) allSetups.add(t.setup); });
+      const row = document.getElementById('setupFilterRow');
+      if (!allSetups.size) {
+        row.innerHTML = '';
+        return;
+      }
+      let html = `<button class="tag-filter${activeSetupFilter === null ? ' active' : ''}" onclick="setSetupFilter(null)">Semua Setup</button>`;
+      [...allSetups].sort().forEach(st => {
+        const safeAttr = escapeHTML(st);
+        html += `<button class="tag-filter${activeSetupFilter === st ? ' active' : ''}" onclick="setSetupFilter('${safeAttr}')">📐 ${safeAttr}</button>`;
+      });
+      row.innerHTML = html;
+    }
+
+    function loadEvalLogsStorage() {
+      try {
+        const raw = localStorage.getItem('mt5_eval_logs');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') evalLogs = parsed;
+        }
+      } catch (e) {
+        evalLogs = {};
+      }
+      const dateInput = document.getElementById('evalDateKey');
+      if (dateInput && !dateInput.value) dateInput.value = toLocalDateKey(new Date());
+      loadEvalJournal();
+    }
+
+    function getEvalKey() {
+      const p = document.getElementById('evalPeriodType')?.value || 'daily';
+      const d = document.getElementById('evalDateKey')?.value || toLocalDateKey(new Date());
+      return `${p}:${d}`;
+    }
+
+    function loadEvalJournal() {
+      const key = getEvalKey();
+      const item = evalLogs[key] || { good: '', mistake: '', focus: '' };
+      if (document.getElementById('evalGood')) document.getElementById('evalGood').value = item.good || '';
+      if (document.getElementById('evalMistake')) document.getElementById('evalMistake').value = item.mistake || '';
+      if (document.getElementById('evalNextFocus')) document.getElementById('evalNextFocus').value = item.focus || '';
+      renderEvalHistory();
+    }
+
+    function saveEvalJournal() {
+      const key = getEvalKey();
+      const good = (document.getElementById('evalGood')?.value || '').trim();
+      const mistake = (document.getElementById('evalMistake')?.value || '').trim();
+      const focus = (document.getElementById('evalNextFocus')?.value || '').trim();
+      if (!good && !mistake && !focus) {
+        delete evalLogs[key];
+      } else {
+        evalLogs[key] = { good, mistake, focus, updatedAt: new Date().toISOString() };
+      }
+      localStorage.setItem('mt5_eval_logs', JSON.stringify(evalLogs));
+      const badge = document.getElementById('evalSavedBadge');
+      if (badge) {
+        badge.textContent = '✓ Tersimpan';
+        badge.style.color = 'var(--green)';
+      }
+      renderEvalHistory();
+    }
+
+    function renderEvalHistory() {
+      const box = document.getElementById('evalHistoryList');
+      if (!box) return;
+      const entries = Object.entries(evalLogs)
+        .filter(([, v]) => v && (v.good || v.mistake || v.focus))
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .slice(0, 4);
+      if (!entries.length) {
+        box.innerHTML = '';
+        return;
+      }
+      box.innerHTML = `<div style="font-size:0.68rem;font-weight:700;color:var(--muted);margin-bottom:4px;border-top:1px solid var(--border);padding-top:8px;">RIWAYAT EVALUASI TERAKHIR</div>` +
+        entries.map(([k, v]) => {
+          const [ptype, pdate] = k.split(':');
+          const label = ptype === 'weekly' ? 'Mingguan' : 'Harian';
+          return `<div style="font-size:0.72rem;padding:7px 9px;background:var(--card2);border:1px solid var(--border);border-radius:10px;margin-top:5px;">
+            <div style="font-weight:700;color:var(--gold2);margin-bottom:2px;">${label} · ${escapeHTML(pdate)}</div>
+            ${v.good ? `<div class="g">✅ ${escapeHTML(v.good)}</div>` : ''}
+            ${v.mistake ? `<div class="r">⚠️ ${escapeHTML(v.mistake)}</div>` : ''}
+            ${v.focus ? `<div style="color:var(--muted)">🎯 ${escapeHTML(v.focus)}</div>` : ''}
+          </div>`;
+        }).join('');
+    }
+
     function updateTagStats(filtered) {
       const curr = getDisplayCurrency(filtered);
       const byTag = {};
@@ -2040,9 +2296,9 @@ Data sekarang akan diganti.`)) return;
     function exportCSV() {
       const f = getFilteredTrades();
       if (!f.length) return alert('Belum ada trade');
-      const header = 'Symbol,Type,Volume,Profit,Currency,CloseReason,OpenTime,CloseTime,Ticket,Tags,Note\n';
+      const header = 'Symbol,Type,Volume,Profit,Currency,Setup,CloseReason,OpenTime,CloseTime,Ticket,Tags,Note\n';
       const rows = f.map(t =>
-        [t.symbol, t.type, t.volume ?? '', t.profit, t.currency || 'CHC', t.closeReason || '', t.openTime, t.closeTime, t.ticket, (t.tags || []).join(';'), t.note || '']
+        [t.symbol, t.type, t.volume ?? '', t.profit, t.currency || 'CHC', t.setup || '', t.closeReason || '', t.openTime, t.closeTime, t.ticket, (t.tags || []).join(';'), t.note || '']
           .map(csvCell)
           .join(',')
       ).join('\n');
@@ -2179,9 +2435,11 @@ Data sekarang akan diganti.`)) return;
       updateCalendar(filtered);
       updateCurrencyStats();
       updateSymbolStats(filtered);
+      updateSetupStats(filtered);
       updateTagStats(filtered);
       updateCurrencyFilters();
       updatePairFilters();
+      updateSetupFilters();
       updateTagFilters();
       updateWeekCompare();
 
@@ -2196,10 +2454,12 @@ Data sekarang akan diganti.`)) return;
                 <span class="sym">${escapeHTML(t.symbol)}</span>
                 <span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">${escapeHTML(t.type)} ${t.volume != null ? escapeHTML(t.volume) : ''}</span>
                 <span class="badge badge-curr">${escapeHTML(c)}</span>
+                ${t.setup ? `<span class="badge" style="background:var(--accent-bg);color:var(--accent2)">📐 ${escapeHTML(t.setup)}</span>` : ''}
                 ${t.closeReason ? `<span class="badge badge-reason">${escapeHTML(t.closeReason)}</span>` : ''}
               </div>
               <div style="text-align:right">
                 <div class="profit-big ${t.profit >= 0 ? 'g' : 'r'}">${formatMoney(t.profit, c)}</div>
+                <button class="rmv" onclick="editSetup('${safeId}')" title="Setup">📐 setup</button>
                 <button class="rmv" onclick="editNote('${safeId}')" title="Catatan">📝 catatan</button>
                 <button class="rmv" onclick="editProfit('${safeId}')" title="Edit nominal">✎ edit</button>
                 <button class="rmv" onclick="flipProfit('${safeId}')" title="Balik profit/loss">± balik</button>
@@ -2222,9 +2482,11 @@ Data sekarang akan diganti.`)) return;
     loadTrades();
     loadBalanceLogs();
     loadTargets();
+    loadEvalLogsStorage();
     loadChecklist();
     updateLotCalculator();
     render();
   </script>
 </body>
 </html>
+Processed and analyzed in code
