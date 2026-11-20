@@ -1696,11 +1696,13 @@ Data sekarang akan diganti.`)) return;
       const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
       const totalWD = balanceLogs.filter(x => x.type === 'withdraw').reduce((s, x) => s + x.amount, 0);
       const balEl = document.getElementById('balanceInfo');
-      if (initBal > 0 || totalDep > 0 || totalWD > 0) {
+      const hasAnyBalContext = initBal > 0 || totalDep > 0 || totalWD > 0 || totalAllNet !== 0;
+      if (hasAnyBalContext) {
         const curBal = initBal + totalAllNet + totalDep - totalWD;
         const baseCapital = initBal + totalDep;
         const growth = baseCapital > 0 ? ((totalAllNet / baseCapital) * 100) : 0;
-        balEl.innerHTML = `<span>Saldo Aktif: <strong class="${curBal >= 0 ? 'g' : 'r'}">${formatMoney(curBal, curr)}</strong></span><span class="${growth >= 0 ? 'g' : 'r'}">PnL ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</span>`;
+        const growthText = baseCapital > 0 ? `PnL ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%` : 'Tanpa modal awal';
+        balEl.innerHTML = `<span>Saldo Aktif: <strong class="${curBal >= 0 ? 'g' : 'r'}">${formatMoney(curBal, curr)}</strong></span><span class="${growth >= 0 ? 'g' : 'r'}">${growthText}</span>`;
         const calcInput = document.getElementById('calcBalance');
         if (calcInput && document.activeElement !== calcInput) {
           calcInput.value = Math.max(0, curBal).toFixed(2);
@@ -2226,4 +2228,3 @@ Data sekarang akan diganti.`)) return;
   </script>
 </body>
 </html>
-Processed and analyzed in code
