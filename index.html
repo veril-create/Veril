@@ -1378,6 +1378,22 @@ Data sekarang akan diganti.`)) return;
       return Number.isFinite(n) ? n : null;
     }
 
+    function parsePriceToken(tok) {
+      if (!tok) return null;
+      const clean = String(tok).trim().replace(/\s+/g, '');
+      // Jika ada koma diikuti tepat 3 digit di akhir (format ribuan MT5 seperti 3,719.319 atau 3.719,319)
+      if (/^[+-]?[\d.,]+,\d{3}$/.test(clean) && !clean.includes('.')) {
+        const n = parseFloat(clean.replace(/,/g, ''));
+        return Number.isFinite(n) ? n : null;
+      }
+      // Jika ada titik diikuti tepat 3 digit (seperti harga XAU/USD 3701.958 atau 3.701,958)
+      if (/^[+-]?\d{1,2}[.,]\d{3}(?:[.,]\d{1,3})?$/.test(clean)) {
+        const n = parseFloat(clean.replace(/,/g, ''));
+        return Number.isFinite(n) ? n : null;
+      }
+      return parseNumber(clean);
+    }
+
     function parseOneTrade(block) {
       if (!block || !block.trim()) return null;
       const full = block.replace(/\s+/g, ' ').trim();
@@ -1401,56 +1417,85 @@ Data sekarang akan diganti.`)) return;
         if (v2) volume = parseNumber(v2[1]);
       }
 
-      let openPrice = null, closePrice = null;
-      const padaMatch = full.match(/(?:beli|jual|buy|sell)\s+[\d.,]+\s+(?:pada|at|@)\s+([\d,]+(?:\.\d+)?)/i);
-      if (padaMatch) openPrice = parseNumber(padaMatch[1]);
+      let openPrice = null, closePrice = null, slPrice = null, tpPrice = null;
+      const padaMatch = full.match(/(?:beli|jual|buy|sell)\s+[\d.,]+\s+(?:pada|at|@)\s+([\d.,]+)/i);
+      if (padaMatch) openPrice = parsePriceToken(padaMatch[1]);
+
+      const openLbl = full.match(/(?:harga pembukaan|open price)\s*([\d.,]+)/i);
+      if (openLbl) openPrice = parsePriceToken(openLbl[1]);
+
+      const closeLbl = full.match(/(?:harga penutupan|close price)\s*([\d.,]+)/i);
+      if (closeLbl) closePrice = parsePriceToken(closeLbl[1]);
+
+      const slLbl = full.match(/(?:batas rugi|stop loss)\s*([\d.,]+)/i);
+      if (slLbl) slPrice = parsePriceToken(slLbl[1]);
+
+      const tpLbl = full.match(/(?:batas untung|take profit)\s*([\d.,]+)/i);
+      if (tpLbl) tpPrice = parsePriceToken(tpLbl[1]);
 
       const pm = full.match(/([\d\s,]{3,}\.\d+)\s*[→\->»]+\s*([\d\s,]{3,}\.\d+)/);
       if (pm) {
-        openPrice = parseNumber(pm[1]);
-        closePrice = parseNumber(pm[2]);
+        openPrice = parsePriceToken(pm[1]);
+        closePrice = parsePriceToken(pm[2]);
       }
+
+      // Kumpulkan semua angka harga/level agar tidak pernah tertukar sebagai profit/loss
+      const excludedPriceValues = [openPrice, closePrice, slPrice, tpPrice].filter(v => v !== null && Number.isFinite(v));
+      const allPriceLikeTokens = full.match(/\b\d{1,2}[.,]\d{3}(?:[.,]\d{1,3})?\b/g) || [];
+      for (const pt of allPriceLikeTokens) {
+        const pv = parsePriceToken(pt);
+        if (pv !== null) excludedPriceValues.push(pv);
+      }
+
+      const isPriceLevel = (val) => {
+        if (val === null || !Number.isFinite(val)) return false;
+        // Harga emas / indeks / kripto di atas 500 yang cocok dengan harga open/close/SL/TP atau format 3 desimal harga
+        if (Math.abs(val) > 500) return true;
+        return excludedPriceValues.some(ev => Math.abs(Math.abs(val) - Math.abs(ev)) < 0.05);
+      };
 
       let profit = null;
       let detectedCurrency = null;
 
-      const currSigned = full.match(/([+\-–—−]\s*[\d,]{1,7}\.\d{1,2})\s*(CHC|CHF|USD|USC|EUR|GBP|JPY|AUD|CAD|IDR)\b/i);
+      // 1. Cari nominal profit/loss eksplisit di dekat kata kunci Profit / Loss / Untung / Rugi / Net / CHC / USD
+      const currSigned = full.match(/([+\-–—−]\s*[\d,]{1,6}(?:[.,]\d{1,2})?)\s*(CHC|CHF|USD|USC|EUR|GBP|JPY|AUD|CAD|IDR)\b/i);
       if (currSigned) {
-        profit = parseNumber(currSigned[1]);
-        detectedCurrency = currSigned[2].toUpperCase();
+        const cand = parseNumber(currSigned[1]);
+        if (cand !== null && !isPriceLevel(cand)) {
+          profit = cand;
+          detectedCurrency = currSigned[2].toUpperCase();
+        }
       }
 
       if (profit === null) {
-        const signedMatches = full.match(/[+\-–—−]\s*[\d,]{1,7}\.\d{1,2}/g) || [];
-        const signedCands = signedMatches
-          .map(parseNumber)
-          .filter(v => v !== null && Math.abs(v) < 50000 && Math.abs(v) > 0.004);
-        if (signedCands.length) profit = signedCands[signedCands.length - 1];
-      }
-
-      if (profit === null) {
-        const lblMatch = full.match(/(?:profit|loss|untung|rugi|hasil|net)\s*[:=]?\s*([+\-–—−]?\s*[\d,]{1,7}\.\d{1,2})/i);
+        const lblMatch = full.match(/(?:profit|loss|untung|rugi|hasil|net)\s*[:=]?\s*([+\-–—−]?\s*[\d,]{1,6}(?:[.,]\d{1,2})?)/i);
         if (lblMatch) {
-          profit = parseNumber(lblMatch[1]);
-          if (profit !== null && /(?:loss|rugi)/i.test(lblMatch[0]) && profit > 0) {
-            profit = -profit;
+          const cand = parseNumber(lblMatch[1]);
+          if (cand !== null && !isPriceLevel(cand)) {
+            profit = cand;
+            if (/(?:loss|rugi)/i.test(lblMatch[0]) && profit > 0) {
+              profit = -profit;
+            }
           }
         }
       }
 
       if (profit === null) {
-        const nums = full.match(/(?<![.\d])[\d,]{1,7}\.\d{1,2}(?![.\d])/g) || [];
-        const cands = [];
-        for (const n of nums) {
-          const v = parseNumber(n);
-          if (v === null) continue;
-          if (Math.abs(v) < 0.01 || Math.abs(v) >= 50000) continue;
-          if (openPrice && Math.abs(v - openPrice) < 0.05) continue;
-          if (closePrice && Math.abs(v - closePrice) < 0.05) continue;
-          if (volume != null && Math.abs(v - volume) < 0.001) continue;
-          cands.push(v);
+        const signedMatches = full.match(/[+\-–—−]\s*[\d,]{1,6}(?:[.,]\d{1,2})?/g) || [];
+        const signedCands = signedMatches
+          .map(parseNumber)
+          .filter(v => v !== null && Math.abs(v) < 500 && Math.abs(v) > 0.004 && !isPriceLevel(v));
+        if (signedCands.length) profit = signedCands[signedCands.length - 1];
+      }
+
+      // 2. Jika screenshot kartu MT5 hanya menampilkan Header (#4497474781, XAU/USD, Jual 0.05 pada 3713.132 -> 3701.958) tanpa angka profit eksplisit,
+      // hitung estimasi profit dari selisih harga & volume jika tersedia, atau biarkan null agar user bisa cek/isi tanpa angka harga 3719 yang salah
+      if (profit === null && openPrice !== null && closePrice !== null && volume !== null) {
+        const diff = (type === 'sell' || type === 'short') ? (openPrice - closePrice) : (closePrice - openPrice);
+        // Untuk XAU/USD pada akun cent (CHC/USC), 1 lot = 100 oz, selisih harga * volume * 100
+        if (/XAU/i.test(symbol || '')) {
+          profit = Number((diff * volume * 100).toFixed(2));
         }
-        if (cands.length) profit = cands[cands.length - 1];
       }
 
       if (profit !== null && profit > 0) {
@@ -2489,4 +2534,3 @@ Data sekarang akan diganti.`)) return;
   </script>
 </body>
 </html>
-Processed and analyzed in code
