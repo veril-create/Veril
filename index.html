@@ -1,4 +1,3 @@
-index
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -426,6 +425,11 @@ index
         <div class="target-info" id="balanceInfo"></div>
         <div class="target-info" id="targetProgress"><span>Belum set target</span></div>
         <div class="progress-track"><div class="progress-fill" id="targetBarFill" style="width:0%"></div></div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-gold btn-sm" onclick="catatMutasiSaldo('withdraw')">💸 Tarik Saldo (WD)</button>
+          <button class="btn btn-ghost btn-sm" onclick="catatMutasiSaldo('deposit')">➕ Tambah Modal</button>
+        </div>
+        <div id="mutasiList" style="margin-top:10px;"></div>
       </div>
 
       <!-- Checklist Disiplin -->
@@ -643,6 +647,7 @@ index
     let currentImage = null;
     let enhancedCanvas = null;
     let trades = [];
+    let balanceLogs = [];
     let currentFilter = 'all';
     let equityChart = null;
     let selectedTags = [];
@@ -841,12 +846,115 @@ index
       localStorage.setItem('mt5_target_loss', document.getElementById('targetLoss').value);
     }
 
+    function saveBalanceLogs() {
+      localStorage.setItem('mt5_balance_logs', JSON.stringify(balanceLogs));
+    }
+
+    function loadBalanceLogs() {
+      try {
+        const raw = localStorage.getItem('mt5_balance_logs');
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          balanceLogs = parsed.filter(x => x && Number.isFinite(Number(x.amount))).map(x => ({
+            id: x.id ? String(x.id) : makeId(),
+            type: x.type === 'deposit' ? 'deposit' : 'withdraw',
+            amount: Math.abs(Number(x.amount)),
+            currency: String(x.currency || 'CHC').toUpperCase().slice(0, 6) || 'CHC',
+            date: String(x.date || toLocalDateKey(new Date())),
+            note: String(x.note || '').trim().slice(0, 100)
+          }));
+        }
+      } catch (e) {
+        balanceLogs = [];
+      }
+    }
+
+    function catatMutasiSaldo(type) {
+      const isWD = type === 'withdraw';
+      const label = isWD ? 'Tarik Saldo (Withdraw)' : 'Tambah Modal (Deposit)';
+      const amtStr = prompt(`Nominal ${label} (contoh: 500):`, '');
+      if (amtStr === null) return;
+      const amt = parseNumber(amtStr);
+      if (amt === null || amt <= 0) return alert('Nominal harus lebih dari 0.');
+
+      const initBal = parseFloat(document.getElementById('initialBalance').value) || 0;
+      const totalTradeNet = trades.reduce((s, t) => s + (t.profit || 0), 0);
+      const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
+      const totalWD = balanceLogs.filter(x => x.type === 'withdraw').reduce((s, x) => s + x.amount, 0);
+      const curBal = initBal + totalTradeNet + totalDep - totalWD;
+
+      if (isWD && initBal > 0 && amt > curBal) {
+        if (!confirm(`Nominal WD (${amt}) melebihi saldo aktif saat ini (${curBal.toFixed(2)}). Tetap catat?`)) return;
+      }
+
+      const defaultCurr = getDisplayCurrency(trades) || 'CHC';
+      const note = prompt('Catatan (opsional, misal: WD ke bank / e-wallet):', '') || '';
+
+      balanceLogs.unshift({
+        id: makeId(),
+        type: isWD ? 'withdraw' : 'deposit',
+        amount: amt,
+        currency: defaultCurr,
+        date: toLocalDateKey(new Date()),
+        note: note.trim().slice(0, 100)
+      });
+
+      saveBalanceLogs();
+      render();
+    }
+
+    function hapusMutasiSaldo(id) {
+      if (!confirm('Hapus catatan mutasi saldo ini?')) return;
+      balanceLogs = balanceLogs.filter(x => x.id !== id);
+      saveBalanceLogs();
+      render();
+    }
+
+    function renderMutasiLogs() {
+      const box = document.getElementById('mutasiList');
+      if (!box) return;
+      if (!balanceLogs.length) {
+        box.innerHTML = '';
+        return;
+      }
+      const totalWD = balanceLogs.filter(x => x.type === 'withdraw').reduce((s, x) => s + x.amount, 0);
+      const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
+      const curr = balanceLogs[0].currency || 'CHC';
+
+      let summary = `<div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);padding:6px 0;border-top:1px solid var(--border);margin-top:4px;">`;
+      summary += `<span>Total WD: <strong style="color:var(--gold2)">${formatMoney(-totalWD, curr)}</strong></span>`;
+      if (totalDep > 0) summary += `<span>Deposit: <strong class="g">+${totalDep.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}</strong></span>`;
+      summary += `</div>`;
+
+      const items = balanceLogs.slice(0, 5).map(m => {
+        const isWD = m.type === 'withdraw';
+        const sign = isWD ? '-' : '+';
+        const cls = isWD ? 'style="color:var(--gold2);font-weight:700"' : 'class="g" style="font-weight:700"';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;padding:5px 8px;background:var(--card2);border:1px solid var(--border);border-radius:9px;margin-top:5px;">
+          <div>
+            <span ${cls}>${isWD ? '💸 WD' : '➕ Deposit'} ${sign}${m.amount.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${escapeHTML(m.currency)}</span>
+            <span style="color:var(--muted);margin-left:6px;">${escapeHTML(m.date)}${m.note ? ' · ' + escapeHTML(m.note) : ''}</span>
+          </div>
+          <button class="rmv" onclick="hapusMutasiSaldo('${escapeHTML(m.id)}')" title="Hapus">✕</button>
+        </div>`;
+      }).join('');
+
+      box.innerHTML = summary + items;
+    }
+
     function loadTargets() {
       const initBal = localStorage.getItem('mt5_init_balance') || '';
       document.getElementById('initialBalance').value = initBal;
       document.getElementById('targetProfit').value = localStorage.getItem('mt5_target_profit') || '';
       document.getElementById('targetLoss').value = localStorage.getItem('mt5_target_loss') || '';
-      if (initBal) document.getElementById('calcBalance').value = initBal;
+      if (initBal) {
+        const totalTradeNet = trades.reduce((s, t) => s + (t.profit || 0), 0);
+        const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
+        const totalWD = balanceLogs.filter(x => x.type === 'withdraw').reduce((s, x) => s + x.amount, 0);
+        const activeBal = (parseFloat(initBal) || 0) + totalTradeNet + totalDep - totalWD;
+        document.getElementById('calcBalance').value = Math.max(0, activeBal).toFixed(2);
+      }
     }
 
     // === Checklist Disiplin ===
@@ -900,9 +1008,10 @@ index
     // === Backup & Restore ===
     function backupData() {
       const data = {
-        version: 4,
+        version: 5,
         exportedAt: new Date().toISOString(),
         trades,
+        balanceLogs,
         initialBalance: document.getElementById('initialBalance').value,
         targetProfit: document.getElementById('targetProfit').value,
         targetLoss: document.getElementById('targetLoss').value
@@ -928,10 +1037,23 @@ index
           if (!confirm(`Restore ${cleanList.length} trade?
 Data sekarang akan diganti.`)) return;
           trades = cleanList;
+          if (Array.isArray(data.balanceLogs)) {
+            balanceLogs = data.balanceLogs.filter(x => x && Number.isFinite(Number(x.amount))).map(x => ({
+              id: x.id ? String(x.id) : makeId(),
+              type: x.type === 'deposit' ? 'deposit' : 'withdraw',
+              amount: Math.abs(Number(x.amount)),
+              currency: String(x.currency || 'CHC').toUpperCase().slice(0, 6) || 'CHC',
+              date: String(x.date || toLocalDateKey(new Date())),
+              note: String(x.note || '').trim().slice(0, 100)
+            }));
+          } else {
+            balanceLogs = [];
+          }
           if (data.initialBalance != null) document.getElementById('initialBalance').value = data.initialBalance;
           if (data.targetProfit != null) document.getElementById('targetProfit').value = data.targetProfit;
           if (data.targetLoss != null) document.getElementById('targetLoss').value = data.targetLoss;
           saveTrades();
+          saveBalanceLogs();
           saveTargets();
           render();
           alert(`✅ Berhasil restore ${cleanList.length} trade`);
@@ -1571,14 +1693,23 @@ Data sekarang akan diganti.`)) return;
       const net = filtered.reduce((s, t) => s + (t.profit || 0), 0);
       const curr = getDisplayCurrency(filtered);
 
+      const totalDep = balanceLogs.filter(x => x.type === 'deposit').reduce((s, x) => s + x.amount, 0);
+      const totalWD = balanceLogs.filter(x => x.type === 'withdraw').reduce((s, x) => s + x.amount, 0);
       const balEl = document.getElementById('balanceInfo');
-      if (initBal > 0) {
-        const curBal = initBal + totalAllNet;
-        const growth = ((curBal - initBal) / initBal) * 100;
-        balEl.innerHTML = `<span>Saldo Sekarang: <strong class="${curBal >= initBal ? 'g' : 'r'}">${formatMoney(curBal, curr)}</strong></span><span class="${growth >= 0 ? 'g' : 'r'}">${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</span>`;
+      if (initBal > 0 || totalDep > 0 || totalWD > 0) {
+        const curBal = initBal + totalAllNet + totalDep - totalWD;
+        const baseCapital = initBal + totalDep;
+        const growth = baseCapital > 0 ? ((totalAllNet / baseCapital) * 100) : 0;
+        balEl.innerHTML = `<span>Saldo Aktif: <strong class="${curBal >= 0 ? 'g' : 'r'}">${formatMoney(curBal, curr)}</strong></span><span class="${growth >= 0 ? 'g' : 'r'}">PnL ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</span>`;
+        const calcInput = document.getElementById('calcBalance');
+        if (calcInput && document.activeElement !== calcInput) {
+          calcInput.value = Math.max(0, curBal).toFixed(2);
+          updateLotCalculator();
+        }
       } else {
         balEl.innerHTML = '';
       }
+      renderMutasiLogs();
 
       const el = document.getElementById('targetProgress');
       const bar = document.getElementById('targetBarFill');
@@ -2087,6 +2218,7 @@ Data sekarang akan diganti.`)) return;
     }
 
     loadTrades();
+    loadBalanceLogs();
     loadTargets();
     loadChecklist();
     updateLotCalculator();
